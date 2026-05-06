@@ -27,6 +27,7 @@ from .routes import metrics as metrics_route
 from .routes import recommend as recommend_route
 from .routes import reviews as reviews_route
 from .routes import search as search_route
+from .routes import similar_price as similar_price_route
 from .routes import traces as traces_route
 from .services.catalog_snapshot import CatalogSnapshot
 from .services.catalog_writer import CatalogWriter
@@ -93,6 +94,7 @@ app.include_router(events_route.router)
 app.include_router(jobs_route.router)
 app.include_router(metrics_route.router)
 app.include_router(recommend_route.router)
+app.include_router(similar_price_route.router)
 app.include_router(traces_route.router)
 # Ecommerce routes (M1)
 app.include_router(catalog_route.router)

@@ -18,39 +18,9 @@ import time
 from shared.queue import push_result
 
 from ..agents.tools import products_picker_tool
+from ..agents.tools._product_reco_helpers import build_personalization_reason
 
 log = logging.getLogger(__name__)
-
-
-def _build_personalization_reason(ranked_facts: list[dict]) -> str | None:
-    """Format the highest-score Prefers fact as a 2nd-person heading.
-
-    Returns None for cold-start (no Prefers facts). The frontend renders a
-    fallback heading like 'Recommended for you' in that case.
-
-    Heuristic, not LLM. With real Bedrock we could add a tiny Haiku call to
-    rewrite the heading into clean grammar; the heuristic is good enough
-    for v1 and ships zero new Bedrock cost.
-    """
-    prefers = [
-        f for f in ranked_facts
-        if (f.get("polarity") or 0) >= 0 and f.get("text")
-    ]
-    if not prefers:
-        return None
-    # ace_ranking.rank_facts already sorts by combined_score desc, but be
-    # explicit so the heading is stable if that ordering convention shifts.
-    prefers.sort(key=lambda f: float(f.get("combined_score", 0)), reverse=True)
-    top_text = prefers[0]["text"].strip()
-    if not top_text:
-        return None
-    # Lowercase the leading character so "Likes hiking gear" reads as
-    # "Because you likes hiking gear" — still grammatically rough but a
-    # closer fit than "Because you Likes ...".
-    if top_text[0].isupper() and (len(top_text) == 1 or not top_text[1].isupper()):
-        top_text = top_text[0].lower() + top_text[1:]
-    heading = f"Because you {top_text}"
-    return heading[:90]
 
 
 def handle(job: dict, ctx: dict) -> None:
@@ -92,7 +62,7 @@ def handle(job: dict, ctx: dict) -> None:
 
     result["products"] = picker_out["products"]
     result["candidates_considered"] = picker_out["candidates_considered"]
-    result["personalization_reason"] = _build_personalization_reason(ranked_facts)
+    result["personalization_reason"] = build_personalization_reason(ranked_facts)
     result["job_id"] = job_id
 
     push_result(redis_client, job_id, json.dumps(result))
