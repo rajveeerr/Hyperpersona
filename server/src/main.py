@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from shared.logging_config import configure_json_logging
@@ -65,6 +66,14 @@ app.add_middleware(
     window_s=60,
 )
 app.add_middleware(JWTAuthMiddleware)
+# CORS runs FIRST (last added). Preflight OPTIONS short-circuits before
+# auth/rate-limit so the browser handshake doesn't get a 401.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.exception_handler(Exception)
