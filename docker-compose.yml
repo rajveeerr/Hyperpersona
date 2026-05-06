@@ -57,6 +57,8 @@ services:
       VECTOR_MODE: ${VECTOR_MODE:-opensearch}
       OPENSEARCH_HOST: ${OPENSEARCH_HOST:-opensearch}
       OPENSEARCH_PORT: ${OPENSEARCH_PORT:-9200}
+      EVENT_PROCESSING_MODE: ${EVENT_PROCESSING_MODE:-full}
+      SESSION_FLUSH_THRESHOLD: ${SESSION_FLUSH_THRESHOLD:-3}
     depends_on:
       - redis
       - dynamodb-local

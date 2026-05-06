@@ -14,13 +14,14 @@ import time
 
 from shared.schemas import utc_now_iso
 
-from .handlers import generate_recommendation, process_event
+from .handlers import generate_recommendation, process_event, summarize_session
 
 log = logging.getLogger(__name__)
 
 HANDLERS = {
     "process_event": process_event.handle,
     "generate_recommendation": generate_recommendation.handle,
+    "summarize_session": summarize_session.handle,
 }
 
 # Attempts: 1st immediate, 2nd after 2s, 3rd after 5s

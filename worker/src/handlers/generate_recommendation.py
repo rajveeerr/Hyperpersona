@@ -49,7 +49,8 @@ def handle(job: dict, ctx: dict) -> None:
     source_summary = (
         f"context={context}; "
         f"facts_used={rec['facts_used']}; "
-        f"behaviors_used={rec['behaviors_used']}"
+        f"behaviors_used={rec['behaviors_used']}; "
+        f"summaries_used={rec.get('summaries_used', 0)}"
     )
     verified = verifier_tool.verify_recommendation(
         rec["offer"], source_summary, bedrock,
@@ -66,6 +67,7 @@ def handle(job: dict, ctx: dict) -> None:
         "facts_retrieved": rec.get("facts_retrieved", 0),
         "facts_used": rec["facts_used"],
         "behaviors_used": rec["behaviors_used"],
+        "summaries_used": rec.get("summaries_used", 0),
         "conflicts": rec.get("conflicts", []),
         "job_id": job_id,
     }

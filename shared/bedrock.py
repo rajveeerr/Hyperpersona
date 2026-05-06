@@ -20,6 +20,7 @@ import hashlib
 import json
 import logging
 import math
+from concurrent.futures import ThreadPoolExecutor
 from typing import Protocol
 
 log = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ log = logging.getLogger(__name__)
 
 class BedrockClientProtocol(Protocol):
     def embed(self, text: str) -> list[float]: ...
+    def embed_batch(self, texts: list[str]) -> list[list[float]]: ...
     def generate(self, prompt: str, system: str = "", max_tokens: int = 1024) -> str: ...
 
 
@@ -47,6 +49,17 @@ class BedrockClient:
             body=json.dumps({"inputText": text}),
         )
         return json.loads(response["body"].read())["embedding"]
+
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """Parallel-fire N embed calls. Titan's API only takes one text per
+        call, so 'batch' here means concurrent invocations on a thread pool.
+        Wall-clock time becomes ~max(call_latency) instead of sum, capped by
+        Bedrock's per-account TPS limits.
+        """
+        if not texts:
+            return []
+        with ThreadPoolExecutor(max_workers=min(8, len(texts))) as pool:
+            return list(pool.map(self.embed, texts))
 
     def generate(self, prompt: str, system: str = "", max_tokens: int = 1024) -> str:
         body: dict = {
@@ -85,6 +98,10 @@ class MockBedrockClient:
         # unit-normalize so cosine math behaves like real Titan output
         mag = math.sqrt(sum(x * x for x in out))
         return [x / mag for x in out] if mag > 0 else out
+
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        # Mock embed is cheap (no network); sequential is fine.
+        return [self.embed(t) for t in texts]
 
     def generate(self, prompt: str, system: str = "", max_tokens: int = 1024) -> str:
         prompt_short = prompt.replace("\n", " ")[:120]

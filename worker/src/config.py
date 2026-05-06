@@ -20,6 +20,17 @@ class Settings(BaseSettings):
     # Trace SQLite path — shared volume between worker and server
     traces_db_path: str = "/app/traces/agent_traces.db"
 
+    # Event processing mode:
+    #   "full"   — every event runs the full supervisor pipeline (max accuracy)
+    #   "tiered" — only HIGH_SIGNAL_EVENT_TYPES run the supervisor; the rest
+    #              are cheap-stored and rolled up into session summaries.
+    # Default is "full" so we don't trade accuracy for cost until we have to.
+    event_processing_mode: str = "full"
+
+    # Tiered-only: number of cheap-stored events before auto-summarize fires.
+    # Ignored when event_processing_mode == "full".
+    session_flush_threshold: int = 3
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

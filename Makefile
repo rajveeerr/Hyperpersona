@@ -1,4 +1,4 @@
-.PHONY: up down logs build server worker restart-worker setup-db setup-opensearch seed-consent scan-events scan-jobs scan-consent scan-vectors peek-queue test-bedrock test-tools test-recommend test-privacy test-e2e demo-conflict show-trace clean ps
+.PHONY: up down logs build server worker restart-worker setup-db setup-opensearch seed-consent scan-events scan-jobs scan-consent scan-vectors peek-queue test-bedrock test-tools test-recommend test-privacy test-e2e demo-conflict demo-tiered show-trace clean ps
 
 up:
 	docker compose up -d --build
@@ -79,6 +79,11 @@ test-e2e:
 
 demo-conflict:
 	docker compose exec server python /app/scripts/conflict_demo.py
+
+# Step 2 — tiered processing: high-signal events run the supervisor,
+# low-signal events get cheap-stored and rolled into session summaries.
+demo-tiered:
+	docker compose exec server python /app/scripts/demo_tiered.py
 
 ps:
 	docker compose ps

@@ -39,6 +39,7 @@ def main() -> None:
         "tracer": tracer,
         "supervisor": supervisor,
         "redis": redis_client,
+        "settings": settings,
     }
 
     redis_client.ping()

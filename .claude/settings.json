@@ -10,7 +10,13 @@
       "Bash(python -m py_compile /c/cognizant-hack/scripts/test_privacy.py)",
       "Bash(docker exec *)",
       "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T server python /app/scripts/test_e2e.py)",
-      "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T server python /app/scripts/test_privacy.py)"
+      "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T server python /app/scripts/test_privacy.py)",
+      "Bash(python -m py_compile /c/cognizant-hack/shared/constants.py /c/cognizant-hack/worker/src/config.py /c/cognizant-hack/worker/src/main.py /c/cognizant-hack/worker/src/handlers/process_event.py /c/cognizant-hack/worker/src/handlers/summarize_session.py /c/cognizant-hack/worker/src/job_handler.py /c/cognizant-hack/scripts/demo_tiered.py)",
+      "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T server python /app/scripts/demo_tiered.py)",
+      "Bash(python -m py_compile /c/cognizant-hack/worker/src/agents/tools/recommender_tool.py /c/cognizant-hack/worker/src/handlers/generate_recommendation.py /c/cognizant-hack/scripts/demo_tiered.py)",
+      "Bash(python -m py_compile /c/cognizant-hack/worker/src/handlers/summarize_session.py)",
+      "Bash(python -m py_compile /c/cognizant-hack/worker/src/config.py /c/cognizant-hack/worker/src/handlers/process_event.py /c/cognizant-hack/scripts/demo_tiered.py /c/cognizant-hack/shared/bedrock.py /c/cognizant-hack/worker/src/agents/tools/analyzer_tool.py)",
+      "Bash(EVENT_PROCESSING_MODE=tiered docker compose up -d --force-recreate worker)"
     ],
     "additionalDirectories": [
       "C:\\cognizant-hack"
