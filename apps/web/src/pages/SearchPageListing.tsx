@@ -9,6 +9,7 @@ import {
 } from "@/features/catalog/components/CatalogSkeletons";
 import { ListingEmptyFiltered } from "@/features/catalog/components/ListingEmptyFiltered";
 import { ProductGrid } from "@/features/catalog/components/ProductGrid";
+import { useDebugEventStore } from "@/features/events/debug/store";
 import { useTrackEvent } from "@/features/events/useTrackEvent";
 import { SearchInsightPanel, SearchInsightPanelSkeleton } from "@/features/search/components/SearchInsightPanel";
 import { useFacetStripBusyForScopeChange } from "../features/catalog/hooks/useFacetStripBusyForScopeChange";
@@ -148,6 +149,15 @@ export function SearchPageListing() {
   };
 
   const hasSearchFacetFilters = Boolean(vertical) || freeDelivery === "true";
+  const recentContextChange = useDebugEventStore((state) =>
+    state.events.find((event) => event.event_type === "consent_updated" || event.event_type === "profile_updated"),
+  );
+  const rankingContextChange = recentContextChange
+    ? {
+        source: recentContextChange.event_type === "consent_updated" ? ("consent" as const) : ("profile" as const),
+        at: recentContextChange.created_at,
+      }
+    : null;
 
   return (
     <div className={`${tw.stackLg} flex flex-1 flex-col`}>
@@ -155,6 +165,15 @@ export function SearchPageListing() {
         <p className="text-sm text-red-800/90" role="alert">
           Could not load search results. Check your connection and try again.
         </p>
+      ) : null}
+
+      {query.data ? (
+        <div className="flex flex-wrap items-center gap-2" aria-live="polite">
+          <span className={query.data.personalized ? tw.chipSuccess : tw.chipWarning}>
+            {query.data.personalized ? "Personalized ranking active" : "Generic ranking mode"}
+          </span>
+          <span className={tw.chipInfo}>Query: {q || "None"}</span>
+        </div>
       ) : null}
 
       {query.isError ? null : initialListLoading ||
@@ -165,6 +184,7 @@ export function SearchPageListing() {
           personalized={query.data.personalized}
           query={q}
           explanations={explanationsQuery.data.search}
+          rankingContextChange={rankingContextChange}
         />
       ) : query.isSuccess && query.data && explanationsQuery.isError ? (
         <p className={`rounded-card border border-outline/40 bg-surface/80 px-5 py-4 text-sm ${tw.muted}`}>
@@ -224,7 +244,7 @@ export function SearchPageListing() {
 
           {query.data.items.length > 0 && totalPages > 1 ? (
             <nav
-              className="mt-2 flex flex-wrap items-center justify-center gap-4 border-t border-outline/12 pt-6 sm:pt-7"
+              className={`${tw.labPanel} mt-2 flex flex-wrap items-center justify-center gap-4 border-t border-outline/12 pt-6 sm:pt-7`}
               aria-label="Search results pagination"
             >
               <button

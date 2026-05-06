@@ -101,6 +101,12 @@ export const tw = {
 
   chip: "inline-flex min-h-9 items-center rounded-pill bg-accent/10 px-[0.85rem] text-accent-strong",
   chipList: "m-0 flex list-none flex-wrap gap-2 p-0",
+  chipInfo: "inline-flex min-h-8 items-center rounded-pill border border-info/30 bg-info/10 px-3 text-xs text-info",
+  chipSuccess:
+    "inline-flex min-h-8 items-center rounded-pill border border-success/30 bg-success/10 px-3 text-xs text-success",
+  chipWarning:
+    "inline-flex min-h-8 items-center rounded-pill border border-warning/30 bg-warning/10 px-3 text-xs text-warning",
+  chipError: "inline-flex min-h-8 items-center rounded-pill border border-error/30 bg-error/10 px-3 text-xs text-error",
 
   sectionHeader: "flex flex-col justify-between gap-4 sm:flex-row sm:items-center",
   flexBetween: "flex items-center justify-between gap-4",

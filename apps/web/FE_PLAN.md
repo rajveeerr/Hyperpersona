@@ -487,6 +487,14 @@ Elevate the visual system once inspiration assets or a public reference URL are 
 - updated layout, typography, illustration direction, and motion language
 - visual QA pass against `web-design-guidelines`
 
+#### Phase 4 implementation snapshot (current)
+
+- done: curated inspiration index in `design-inspo/README.md` with asset-to-surface mapping
+- done: token refinement in `src/shared/styles/app.css` (warning/error/info + motion tokens + color-scheme)
+- done: applied visual polish on `src/pages/DemoLabPage.tsx` using refined panel/chip vocabulary and illustration anchor
+- done: visual QA audit documented in `PHASE4_VISUAL_QA.md` against `web-design-guidelines`
+- done: second polish pass on `catalog`, `search`, and `PDP` surfaces for consistent panel/chip/interaction vocabulary
+
 #### Implementation notes
 
 - If reference is local media, use it manually as inspiration.

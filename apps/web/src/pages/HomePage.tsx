@@ -16,6 +16,15 @@ export function HomePage() {
     queryFn: apiClient.getHomeRecommendations,
   });
 
+  const recommendationMode: "loading" | "personalized" | "generic" | "cold-start" =
+    recommendationsQuery.isLoading || recommendationsQuery.isPending
+      ? "loading"
+      : !recommendationsQuery.data || recommendationsQuery.data.length === 0
+        ? "cold-start"
+        : recommendationsQuery.data.every((rail) => rail.fallback)
+          ? "generic"
+          : "personalized";
+
   return (
     <div className="flex flex-col gap-0">
       <EditorialHero />
@@ -24,7 +33,7 @@ export function HomePage() {
 
       <HomePopularSection />
 
-      <HomePersonalizedSection>
+      <HomePersonalizedSection mode={recommendationMode}>
         {recommendationsQuery.isLoading ? (
           <p className={`text-sm ${tw.muted}`}>Loading personalized picks…</p>
         ) : (

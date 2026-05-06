@@ -27,11 +27,19 @@
   --color-accent-strong: #8f5032;
   --color-outline: rgba(34, 28, 23, 0.1);
   --color-success: #5e6f62;
+  --color-warning: #8a6439;
+  --color-error: #8a3f3a;
+  --color-info: #48627a;
   --color-shadow: rgba(62, 40, 27, 0.06);
   --color-persona-ring: rgba(216, 92, 47, 0.45);
   --color-persona-fill: rgba(216, 92, 47, 0.08);
   --color-consent-active: rgba(53, 105, 75, 0.2);
   --color-debug-tile: rgba(31, 27, 24, 0.04);
+
+  --motion-duration-fast: 160ms;
+  --motion-duration-base: 240ms;
+  --motion-duration-slow: 420ms;
+  --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
 
   --shadow-card: 0 28px 80px var(--color-shadow);
 
@@ -74,6 +82,7 @@
 
   body {
     @apply min-h-screen font-body text-ink antialiased tracking-body;
+    color-scheme: light;
     background:
       radial-gradient(circle at top left, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 32%),
       linear-gradient(180deg, #faf6ef 0%, #f2e9de 100%);
@@ -123,7 +132,7 @@
   }
 
   .persona-memory-snap {
-    animation: persona-memory-snap 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: persona-memory-snap var(--motion-duration-slow) var(--motion-ease-standard) both;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -143,7 +152,7 @@
   }
 
   .outlet-route-snap {
-    animation: outlet-route-snap 0.16s ease-out both;
+    animation: outlet-route-snap var(--motion-duration-fast) ease-out both;
   }
 
   @media (prefers-reduced-motion: reduce) {

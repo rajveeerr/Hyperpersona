@@ -13,6 +13,7 @@ const CartPage = lazy(() => import("@/pages/CartPage").then((m) => ({ default: m
 const CheckoutPage = lazy(() => import("@/pages/CheckoutPage").then((m) => ({ default: m.CheckoutPage })));
 const ConsentPage = lazy(() => import("@/pages/ConsentPage").then((m) => ({ default: m.ConsentPage })));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
+const DemoLabPage = lazy(() => import("@/pages/DemoLabPage").then((m) => ({ default: m.DemoLabPage })));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage })));
 
 export const router = createBrowserRouter([
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
       { path: "checkout", element: <CheckoutPage /> },
       { path: "consent", element: <ConsentPage /> },
       { path: "profile", element: <ProfilePage /> },
+      { path: "demo", element: <DemoLabPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

@@ -90,7 +90,7 @@ export function Footer() {
                 name="email"
                 type="email"
                 autoComplete="email"
-                placeholder="Enter your email"
+                placeholder="Enter your email…"
                 className="min-w-0 flex-1 border-0 bg-transparent py-1 text-left text-[0.875rem] text-ink outline-none placeholder:text-muted/50"
               />
               <button

@@ -104,7 +104,7 @@ export const CatalogToolbar = ({
         <div className={`grid w-full max-w-xs gap-0.5 ${showCategory ? "sm:text-right" : ""}`}>
           <label
             htmlFor="catalog-sort"
-            className={`${labelSerif} ${showCategory ? "sm:ml-auto sm:max-w-[14rem]" : ""}`}
+            className={`${labelSerif} ${showCategory ? "sm:ml-auto sm:max-w-56" : ""}`}
           >
             Sort by
           </label>

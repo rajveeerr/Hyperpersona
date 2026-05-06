@@ -22,6 +22,9 @@ const CatalogPageIntro = memo(function CatalogPageIntro() {
     <header className="max-w-3xl">
       <p className={`mb-2 text-[0.7rem] font-semibold uppercase tracking-[0.18em] ${tw.muted}`}>Catalog</p>
       <h1 className={`${tw.storyTitle} max-w-[18ch]`}>Browse editorial product surfaces the way a real shopper would.</h1>
+      <p className={`mt-3 max-w-2xl text-sm leading-relaxed ${tw.muted}`}>
+        Filters update quickly in place, while category changes can refresh the facet structure.
+      </p>
     </header>
   );
 });
@@ -203,7 +206,7 @@ export function CatalogPage() {
 
       {query.data && totalPages > 1 ? (
         <nav
-          className="flex flex-wrap items-center justify-center gap-4 border-t border-outline/12 pt-6 sm:pt-7"
+          className={`${tw.labPanel} flex flex-wrap items-center justify-center gap-4 border-t border-outline/12 pt-6 sm:pt-7`}
           aria-label="Catalog pagination"
         >
           <button

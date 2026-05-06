@@ -23,12 +23,17 @@ type SearchInsightPanelProps = {
   personalized: boolean;
   query: string;
   explanations: string[];
+  rankingContextChange?: {
+    source: "consent" | "profile";
+    at: string;
+  } | null;
 };
 
 export const SearchInsightPanel = ({
   personalized,
   query,
   explanations,
+  rankingContextChange = null,
 }: SearchInsightPanelProps) => {
   const titleId = "search-insight-title";
   return (
@@ -46,6 +51,23 @@ export const SearchInsightPanel = ({
         >
           {personalized ? `Results for “${query}” are being re-ranked` : "Results are generic right now"}
         </h2>
+        {rankingContextChange ? (
+          <div className="rounded-card border border-outline/30 bg-white/65 px-4 py-3">
+            <p className={`text-[0.65rem] font-semibold uppercase tracking-[0.16em] ${tw.muted}`}>Ranking context updated</p>
+            <p className="mt-1 text-sm leading-relaxed text-ink/88">
+              {rankingContextChange.source === "consent"
+                ? "Consent settings changed recently, so ranking behavior may shift between personalized and generic modes."
+                : "Profile preferences changed recently, so ranking and recommendation explanations may update."}
+            </p>
+            <p className={`mt-1 text-[0.72rem] tabular-nums ${tw.muted}`}>
+              {new Date(rankingContextChange.at).toLocaleTimeString(undefined, {
+                hour: "numeric",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+            </p>
+          </div>
+        ) : null}
         <div className="border-t border-outline/20 pt-5 sm:pt-6">
           <p className={`mb-3 text-[0.7rem] font-medium uppercase tracking-ui-wide ${tw.muted}`}>
             Why this ranking
