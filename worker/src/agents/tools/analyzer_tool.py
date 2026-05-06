@@ -44,7 +44,11 @@ _PROMPT_TEMPLATE = "Event: {text}"
 
 
 def _parse_facts(generated: str) -> list[dict]:
-    """Find a JSON array in Claude's output. Fall back to a stub on failure."""
+    """Find a JSON array in Claude's output. Returns an empty list on parse
+    failure rather than injecting a stub fact — a malformed response should
+    skip the analyzer for this event, not pollute the customer's fact graph
+    with a generic placeholder ("interested in this product category") that
+    the recommender would later treat as real signal."""
     try:
         match = re.search(r"\[.*?\]", generated, re.DOTALL)
         if match:
@@ -53,8 +57,8 @@ def _parse_facts(generated: str) -> list[dict]:
                 return parsed
     except (json.JSONDecodeError, ValueError):
         pass
-    # mock-mode fallback so the rest of the pipeline has at least one fact
-    return [{"text": "interested in this product category", "polarity": 1}]
+    log.warning("analyzer: could not parse Claude facts; skipping event", extra={"raw_excerpt": (generated or "")[:160]})
+    return []
 
 
 def make_analyzer_tool(

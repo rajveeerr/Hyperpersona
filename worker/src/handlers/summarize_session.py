@@ -8,9 +8,9 @@ session-summaries collection, and marks the source events as 'aggregated'.
 Cost: 1 generate + 1 embed per summary, vs 1 embed in the previous concat
 version. Still ~6× cheaper than running the full supervisor per event.
 
-Mock-mode behavior: MockBedrockClient.generate returns a stub starting with
-"[mock]". We detect that and fall back to the concat format so the demo
-output stays readable. Real Bedrock produces a real narrative.
+Falls back to a concat-based summary when Bedrock raises (network blip,
+rate limit, malformed response). Real Bedrock output replaces the
+fallback once it succeeds again.
 
 Idempotency: summary doc_id is sha256(sorted event_ids), so a retry
 overwrites the same row. Status updates are also idempotent.
@@ -58,13 +58,10 @@ def _concat_fallback(raw_lines: str) -> str:
     )
 
 
-def _looks_like_mock(text: str) -> bool:
-    return text.strip().startswith("[mock]")
-
-
 def _build_summary_text(events: list[dict], bedrock) -> tuple[str, bool]:
     """Returns (text, used_narrative). used_narrative=True means a real
-    Bedrock generate succeeded; False means we fell back to concat."""
+    Bedrock generate succeeded; False means we fell back to concat (network
+    error, rate limit, or empty response)."""
     raw_lines = _raw_event_lines(events)
     try:
         narrative = bedrock.generate(
@@ -72,7 +69,7 @@ def _build_summary_text(events: list[dict], bedrock) -> tuple[str, bool]:
             system=_NARRATIVE_SYSTEM,
             max_tokens=100,
         ).strip()
-        if narrative and not _looks_like_mock(narrative):
+        if narrative:
             return narrative, True
     except Exception:
         log.warning("summary narrative generate failed; falling back", exc_info=True)

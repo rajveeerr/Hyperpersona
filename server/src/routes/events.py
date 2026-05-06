@@ -195,17 +195,21 @@ def _ingest_events(
         # create duplicate work on the queue (matters more under SQS, since
         # each duplicate is a real network message vs Redis LPUSH dups). DDB
         # is the source of truth for "this job already ran".
-        existing_jobs = _dynamo.batch_get_jobs([job["job_id"] for job in accepted_jobs])
-        terminal_ids = {
-            j["job_id"]
-            for j in existing_jobs
-            if j.get("status") in ("completed", "failed")
-        }
-        jobs_to_enqueue = [j for j in accepted_jobs if j["job_id"] not in terminal_ids]
-        payloads_to_enqueue = [
-            payload for job, payload in zip(accepted_jobs, accepted_payloads)
-            if job["job_id"] not in terminal_ids
-        ]
+        #
+        # Uses per-job `get_job` instead of `batch_get_jobs` here: a typical
+        # request batches at most ~50 events, the high-level resource API is
+        # already correct, and depending on the low-level path means another
+        # serialization layer (and a regression risk between deploys when
+        # batch_get_jobs is in flux). The N round trips are dominated by the
+        # downstream Bedrock work anyway.
+        jobs_to_enqueue: list[dict] = []
+        payloads_to_enqueue: list[str] = []
+        for job, payload in zip(accepted_jobs, accepted_payloads):
+            existing = _dynamo.get_job(job["job_id"])
+            if existing and existing.get("status") in ("completed", "failed"):
+                continue
+            jobs_to_enqueue.append(job)
+            payloads_to_enqueue.append(payload)
         if jobs_to_enqueue:
             _dynamo.batch_put_jobs(jobs_to_enqueue)
             _queue.push_many(payloads_to_enqueue)

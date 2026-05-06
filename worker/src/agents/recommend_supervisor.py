@@ -4,11 +4,9 @@ Two implementations behind a Protocol, picked at startup by RECOMMEND_MODE:
 
   - ManualRecommendSupervisor  fixed two-step pipeline matching the
                                legacy generate_recommendation handler.
-                               Works in BEDROCK_MODE=mock or real.
 
   - StrandsRecommendSupervisor wraps a strands.Agent with the two tools.
                                Same trace plumbing as StrandsSupervisor.
-                               Requires BEDROCK_MODE=real.
 
 Use make_recommend_supervisor(...) to build the right one.
 
