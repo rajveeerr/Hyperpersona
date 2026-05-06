@@ -1,9 +1,17 @@
 # Phase 5 Backend Integration Discovery
 
-Last updated: 2026-05-05
+Last updated: 2026-05-05 (post auth + bulk-events update)
 
-> **Pending: auth contract refresh**
-> Backend devs are adding auth endpoints. Several FE→BE shapes (consent, profile, orders, addresses, events identity) will shift from explicit `customer_id` payloads to session/JWT-derived identity once auth lands. This document and the API client adapter must be re-reviewed at that point. Do not lock final integration shapes for those resources until the auth contract is published. Tag affected sections with `(pending-auth)`.
+> **Auth has shipped + bulk events endpoint shipped.**
+> The previous `(pending-auth)` blockers are now resolved. Backend now ships:
+> - `POST /register`, `POST /login` returning a Bearer JWT
+> - JWT auth middleware on every non-public route
+> - `customer_id` resolved server-side from JWT (no longer in request bodies/querystrings)
+> - normalized consent routes (`GET /consent`, `POST /consent`)
+> - normalized right-to-delete (`DELETE /customer`)
+> - bulk events endpoint: `POST /events/batch` (max 100 events per request)
+>
+> This document has been re-written against current backend reality. The FE-side contract changes triggered by auth must be applied **before** any other endpoint cutover.
 
 ## Purpose
 
@@ -26,26 +34,36 @@ This is a pre-integration planning artifact. No blind API swapping.
 - `apps/web/API_REQUIREMENTS.md` (target contract)
 - `apps/web/API_HANDOVER_STATUS.md` (handover status baseline)
 - `server/src/main.py`
-- `server/src/routes/consent.py`
-- `server/src/routes/recommend.py`
-- `server/src/routes/jobs.py`
-- `server/src/routes/traces.py`
-- `server/src/routes/customer.py`
+- `server/src/auth.py` (JWT primitives)
+- `server/src/middleware/auth.py` (JWT middleware + `current_customer_id` dependency)
+- `server/src/routes/auth.py` (`POST /register`, `POST /login`)
+- `server/src/routes/events.py` (`POST /events`, `POST /events/batch`)
+- `server/src/routes/consent.py` (`GET /consent`, `POST /consent`)
+- `server/src/routes/recommend.py` (`GET /recommend`)
+- `server/src/routes/jobs.py` (`GET /jobs/{job_id}`)
+- `server/src/routes/traces.py` (`GET /traces/{job_id}`)
+- `server/src/routes/customer.py` (`DELETE /customer`)
+- `shared/schemas.py` (auth + event + consent request/response shapes)
 
 ## Architecture context (from plan)
 
 - Frontend (`apps/web`) talks to REST APIs.
-- Server (`FastAPI`) handles REST, consent gate, queue handoff.
+- Server (`FastAPI`) handles REST, JWT auth, consent gate, queue handoff.
+- JWT middleware on the server resolves `customer_id` from the Bearer token; routes never accept `customer_id` from clients.
 - Worker processes jobs asynchronously and produces recommendation results.
-- Redis is used for queue and recommendation cache.
-- DynamoDB stores events, consent, jobs.
+- Redis is used for queue, recommendation cache, and (later) hot-profile state.
+- DynamoDB stores events, consent, jobs, and the auth (email → `customer_id` + password hash) table.
 
-Integration implication: frontend must support async-oriented flows (event -> job -> status) and non-uniform endpoint maturity while backend phases progress.
+Integration implication: every protected FE call must carry `Authorization: Bearer <token>`, and the FE must support async-oriented flows (event → job → status) plus non-uniform endpoint maturity while backend phases progress.
 
 ## Frontend expectation inventory (current)
 
 From `apps/web/src/shared/api/client.ts`, frontend currently expects:
 
+- auth (NEW — to be added):
+  - `POST /register`
+  - `POST /login`
+  - (logout is client-side: clear token + invalidate caches)
 - catalog/listing/search:
   - `GET /catalog/categories`
   - `GET /catalog/facets`
@@ -60,9 +78,10 @@ From `apps/web/src/shared/api/client.ts`, frontend currently expects:
 - recommendations surfaces:
   - `GET /recommendations/home`
   - `GET /recommendations/{surface}`
-- consent/profile/debug:
+  - (will be folded onto the single `GET /recommend?context=...` adapter)
+- consent / profile / debug:
   - `GET /consent`
-  - `PUT /consent`
+  - `PUT /consent` → must change to `POST /consent`
   - `GET /me/profile`
   - `PATCH /me/preferences`
   - `GET /me/explanations`
@@ -74,114 +93,219 @@ From `apps/web/src/shared/api/client.ts`, frontend currently expects:
   - `GET /me/addresses`
   - `PATCH /me/addresses/{id}`
 - tracking:
-  - `POST /events`
+  - `POST /events` (per-event today; migrating to `POST /events/batch`)
+- privacy / right-to-erase (NEW — to be added):
+  - `DELETE /customer`
 
 ## Backend reality inventory (current server code)
 
-Implemented now:
+### Public routes (no auth)
 
 - `GET /health`
-- `POST /events`
-- `GET /recommend`
-- `POST /consent`
-- `GET /consent/{customer_id}`
+- `GET /` (service banner)
+- `GET /docs`, `GET /openapi.json`, `GET /redoc`
+- `POST /register` — body `{ email, password }`, returns `{ customer_id, email, token, token_type, expires_in }`
+- `POST /login` — body `{ email, password }`, returns same `AuthResponse` shape
+
+### JWT-protected routes (require `Authorization: Bearer <token>`)
+
+- `POST /events` — singular, kept for backwards compat
+- `POST /events/batch` — bulk, accepts 1..100 events
+- `GET /recommend?context=...` — `customer_id` resolved from JWT
+- `GET /consent` — JWT-derived
+- `POST /consent` — JWT-derived, body `{ scopes, data_retention_days }`
+- `DELETE /customer` — JWT-derived
 - `GET /jobs/{job_id}`
 - `GET /traces/{job_id}`
-- `DELETE /customer/{customer_id}`
 
-Not implemented yet (from frontend perspective):
+### Backend request/response shapes (canonical)
+
+`AuthResponse`:
+
+```ts
+type AuthResponse = {
+  customer_id: string;
+  email: string;
+  token: string;        // JWT, place in Authorization: Bearer <token>
+  token_type: "bearer";
+  expires_in: number;   // seconds
+};
+```
+
+`IngestEventRequest` (per event in a batch):
+
+```ts
+type IngestEventRequest = {
+  client_event_id: string;        // FE-generated UUID — server idempotency key
+  event_type: string;
+  payload: Record<string, unknown>;
+  consent_scope?: string[];       // optional snapshot
+  // NOTE: no customer_id — server resolves from JWT
+};
+```
+
+`IngestBatchRequest`:
+
+```ts
+type IngestBatchRequest = {
+  events: IngestEventRequest[];   // length 1..100
+};
+```
+
+`IngestBatchResponse`:
+
+```ts
+type IngestEventResult = {
+  client_event_id: string;
+  status: "queued" | "rejected";
+  event_id?: string;
+  job_id?: string;                // deterministic: `evt_${client_event_id}`
+  reason?: string;                // e.g. "no_consent_record" | "missing_personalization_scope"
+};
+
+type IngestBatchResponse = {
+  accepted: number;
+  rejected: number;
+  results: IngestEventResult[];   // ordered to mirror request `events[]`
+};
+```
+
+`ConsentUpsertRequest`:
+
+```ts
+type ConsentUpsertRequest = {
+  scopes: string[];                  // e.g. ["personalization", "analytics"]
+  data_retention_days?: number;      // default 90
+};
+```
+
+### Still backend-side TODO (from frontend perspective)
 
 - all catalog/search/reviews endpoints
-- `/recommendations/*` surface endpoints
-- `GET /consent` and `PUT /consent` in frontend shape
+- `/recommendations/*` surface rail endpoints
 - profile/explanations/debug endpoints used by FE
 - checkout/orders/addresses endpoints used by FE
 
 ## Expectation vs reality matrix
 
-### Group A: can integrate soon (with adapter work)
+### Group A: ready to integrate now
 
-#### Consent (pending-auth)
+#### Auth (NEW)
 
-- FE expects:
-  - `GET /consent`
-  - `PUT /consent`
-- BE has:
-  - `POST /consent`
-  - `GET /consent/{customer_id}`
+- FE has: nothing yet. There is no register/login flow in `apiClient`.
+- BE has: `POST /register`, `POST /login` returning `AuthResponse`.
 
-Required changes:
+Required FE changes:
 
-- FE:
-  - introduce server-adapter methods that can call current backend shape.
-  - decide how FE obtains `customer_id` (temporary constant/session identity).
-  - revisit when auth endpoints land — `customer_id` should disappear from request payloads.
-- BE:
-  - ideally add compatibility endpoints (`GET /consent`, `PUT /consent`) or publish final auth-customer contract.
+- add `apiClient.register({ email, password })` and `apiClient.login({ email, password })`.
+- store the JWT token, `customer_id`, and `expires_in` (computed expiry timestamp) in a token store.
+- inject `Authorization: Bearer <token>` on every protected request.
+- handle 401 responses by clearing the token and routing to login.
+- minimal login/register UI surfaces.
+- token storage decision: see *Token storage strategy* below.
+
+#### Consent
+
+- FE currently calls `GET /consent` and `PUT /consent`.
+- BE provides `GET /consent` and `POST /consent`.
+
+Required FE changes:
+
+- change `apiClient.updateConsent` from `PUT` to `POST`.
+- align request body to `{ scopes, data_retention_days? }` (drop any FE-side `customer_id`).
+- keep response shape compatible with current FE consumers (`{ customer_id, scopes, data_retention_days }`).
 
 #### Jobs and traces
 
-- FE does not yet have first-class methods for:
-  - `GET /jobs/{job_id}`
-  - `GET /traces/{job_id}`
-- BE has both endpoints.
+- FE currently has no client methods.
+- BE provides `GET /jobs/{job_id}` and `GET /traces/{job_id}`.
 
-Required changes:
+Required FE changes:
 
-- FE:
-  - add typed client methods and optional debug UI integration hooks.
-- BE:
-  - keep response envelope stable (`404`, `503`, `detail` message shape decisions).
+- add typed `apiClient.getJob(jobId)` and `apiClient.getTraces(jobId)`.
+- wire optional debug surfacing on the recommendation/audit drawer when needed.
 
 #### Customer delete
 
-- FE currently does not call:
-  - `DELETE /customer/{customer_id}`
-- BE supports it.
+- FE currently has no client method.
+- BE provides `DELETE /customer` (JWT-derived, no path param).
 
-Required changes:
+Required FE changes:
 
-- FE:
-  - add adapter method (later used in privacy/admin flow).
+- add `apiClient.deleteAccount()` for the privacy / right-to-erase action.
+- post-delete: clear token store, clear all cached state, route to login or marketing landing.
 
-### Group B: blocked on backend delivery
+#### Events (NEW shape — bulk endpoint shipped)
+
+- FE currently calls `apiClient.trackEvent(IngestEventRequest)` per event.
+- BE shipped `POST /events/batch` with full per-event idempotency support.
+
+Required FE changes:
+
+- adopt `POST /events/batch` as the primary transport.
+- per-event `client_event_id` (FE UUID) is now mandatory.
+- treat `IngestBatchResponse.results[i]` as authoritative — only delete locally persisted events whose `status === "queued"`.
+- on `status === "rejected"` with `reason === "no_consent_record"` or `"missing_personalization_scope"`, do not retry — surface a consent-prompt path.
+- batch size cap: 100 events per HTTP request.
+- keep singular `POST /events` only as a transitional fallback if needed; primary path is batch.
+
+#### Recommendation
+
+- FE currently expects rail-style endpoints (`GET /recommendations/home`, etc.) via MSW.
+- BE provides a single `GET /recommend?context=...` (JWT-derived `customer_id`).
+
+Required FE changes:
+
+- introduce a single `apiClient.getRecommendation(context)` that calls `GET /recommend?context=<encoded>`.
+- compose page-level rails by calling this endpoint with different `context` values (`homepage`, `category:{slug}`, `product_page:{slug}`, `cart_active`, etc.) — see `event-types-description.md`.
+- React Query key: `["recommend", customer_id, context]`, `staleTime: 5min`.
+- keep MSW rail-style endpoints around for surfaces backend hasn't shipped yet (or wrap them under the same `getRecommendation` adapter so component code is unchanged).
+
+### Group B: still blocked on backend delivery
 
 - Catalog, facets, product detail, search
 - Reviews and helpful votes
-- Recommendations surfaces (`/recommendations/home`, `/recommendations/pdp`, etc.)
-- Profile/explanations/debug events read endpoint
+- Profile, explanations, debug events read endpoint
 - Checkout, orders, addresses
 
-For these, frontend stays on MSW until backend endpoints exist or agreed compatibility shims are shipped.
+For these, frontend stays on MSW until backend endpoints exist.
 
-## Critical contract mismatches to resolve before real integration
+## Critical contract mismatches — current status
 
-1. **Consent path + method mismatch**
-   - FE: `GET /consent`, `PUT /consent`
-   - BE: `GET /consent/{customer_id}`, `POST /consent`
+1. ~~**Consent path + method mismatch**~~ — RESOLVED
+   - BE now exposes `GET /consent` and `POST /consent` (JWT-derived).
+   - FE only needs to switch `PUT` → `POST` and drop client-supplied `customer_id`.
 
-2. **Recommendation shape mismatch**
-   - FE uses rail-style recommendation endpoints.
-   - BE currently exposes a single orchestration endpoint: `GET /recommend`.
+2. **Recommendation surface mismatch** — partially resolved
+   - BE still exposes one `GET /recommend?context=...` instead of multiple rail endpoints.
+   - FE composes rails by calling this endpoint with different `context` values.
+   - This is acceptable for now per the canonical spec in `event-types-description.md`.
 
-3. **Identity model mismatch (pending-auth)**
-   - FE currently behaves with demo customer IDs in events.
-   - BE consent/read paths require explicit `customer_id` input.
-   - Need a temporary integration identity contract before full auth routes are ready.
-   - When auth ships, `customer_id` is removed from request bodies/querystrings for authenticated routes; FE must isolate identity resolution into a single module to make this swap mechanical.
+3. ~~**Identity model mismatch**~~ — RESOLVED
+   - JWT middleware extracts `customer_id` from the Bearer token.
+   - FE must remove all explicit `customer_id` from authenticated request bodies/querystrings.
+   - Identity resolution centralizes into the token store, single source of truth.
 
-4. **Error envelope mismatch**
-   - FE client currently throws generic `Error("Request failed: status")`.
-   - BE returns FastAPI `detail` payloads.
-   - Need normalized FE error mapper before rollout.
+4. **Error envelope mismatch** — still open
+   - FE client throws `Error("Request failed: status")`.
+   - BE returns FastAPI `{ detail: "..." }` on 4xx and `{ error: "..." }` on 401 (middleware) and 500 (handler).
+   - FE must implement a normalized error mapper that handles both shapes.
+
+5. **Event batch response handling** — new requirement
+   - FE must consume `IngestBatchResponse` per-event status (not just batch HTTP status).
+   - Partial-success semantics matter: some events queued, others rejected for consent reasons in the same response.
 
 ## Frontend modifications required before endpoint swapping
 
-1. Create swap-ready API adapter layer (no direct path literals in feature hooks/components).
-2. Add central query key factory to stabilize cache keys.
-3. Add canonical error envelope mapper (status + detail + user-action text).
-4. Add temporary customer identity resolver (demo-safe) for consent/jobs/traces/delete routes.
-5. Add backend capability flags (per endpoint group) so FE can mix real + mock safely.
+1. **Auth + token store** — new top-priority item.
+   - module under `apps/web/src/features/auth/` owning `register`, `login`, `logout`, `getToken`, `getCustomerId`, `isAuthenticated`.
+   - all other modules read identity from this store, never from URL/state directly.
+2. **Authenticated `apiClient`** — every method automatically attaches `Authorization: Bearer <token>` for non-public routes.
+   - 401 handler clears the token, dispatches a `auth:expired` event, and redirects to `/login`.
+3. **Canonical error mapper** — handles both `{ detail: ... }` and `{ error: ... }` envelopes plus network errors. Returns `{ status, code, message, retryable }`.
+4. **Swap-ready API adapter layer** — no path literals in feature hooks/components (already partially structured in `client.ts`).
+5. **Central query key factory** — keys derived from `(customer_id, resource, params)`. Auth changes invalidate the entire identity-scoped namespace.
+6. **Backend capability flags** — per resource family (`auth | events | recommend | consent | jobs | traces | catalog | search | reviews | profile | commerce`) toggleable between `real` and `mock` so we mix safely while migration is in progress.
 
 ## Backend build expectations before full FE parity
 
@@ -214,7 +338,7 @@ Minimum for checkout/account:
 - `GET /me/addresses`
 - `PATCH /me/addresses/{id}`
 
-## Event tracking integration spec (deferred — but design it now)
+## Event tracking integration spec
 
 The canonical FE-side event vocabulary lives in `apps/web/event-types-description.md`. That file is the single source of truth for:
 
@@ -222,7 +346,7 @@ The canonical FE-side event vocabulary lives in `apps/web/event-types-descriptio
 - aggregation rules (debounce, dedupe, dwell, no PII),
 - recommendation `context` strings.
 
-Backend is adding a **bulk events endpoint**. FE will switch from per-event `POST /events` to bulk submission as soon as that endpoint is available. The integration **must** be reliable across:
+The backend bulk endpoint `POST /events/batch` is now live (see *Backend reality inventory*). FE must adopt this as the primary transport. The integration **must** be reliable across:
 
 - network drops mid-flight,
 - tab close / navigation away,
@@ -281,46 +405,60 @@ Database layout:
 
 - DB: `hyperpersona-events`
 - Object store: `pending`
-  - keyPath: `event_id` (UUID)
-  - indexed by `enqueued_at` for FIFO drain order
+  - keyPath: `client_event_id` (UUID)
+  - indexed by `client_emitted_at` for FIFO drain order
+  - indexed by `next_attempt_at` for the backoff scheduler
 
 ### Per-event shape (FE-generated)
 
-Each event the FE produces gets a client-generated UUID before it ever leaves memory. This is the basis of server-side idempotency.
+Each event the FE produces gets a client-generated UUID before it ever leaves memory. This is the basis of server-side idempotency. The wire shape is fixed by `IngestEventRequest` in `shared/schemas.py`:
 
 ```ts
-type ClientEvent = {
-  event_id: string;          // UUIDv4 generated on FE — idempotency key
-  customer_id: string;       // resolved at enqueue time (pending-auth: see note)
-  event_type: string;        // from event-types-description.md
+// Wire shape sent to the server
+type IngestEventRequest = {
+  client_event_id: string;          // UUIDv4 generated on FE — server idempotency key
+  event_type: string;               // from event-types-description.md
   payload: Record<string, unknown>;
-  consent_scope: string[];   // snapshot at enqueue time
-  client_emitted_at: string; // ISO timestamp captured at enqueue
-  client_session_id: string; // session-scoped UUID for ordering / analytics
-  schema_version: number;    // 1 today; bump if payload shape changes
+  consent_scope?: string[];         // snapshot at enqueue time
+  // NOTE: no customer_id — server derives it from the JWT
+};
+
+// Internal shape kept in IndexedDB. Adds metadata the server doesn't need.
+type StoredEvent = IngestEventRequest & {
+  client_emitted_at: string;        // ISO timestamp at enqueue
+  client_session_id: string;        // session-scoped UUID
+  schema_version: number;           // 1 today; bump if payload shape changes
+  attempt_count: number;            // retry counter
+  next_attempt_at: number;          // epoch ms — used by backoff scheduler
 };
 ```
 
-The server **must** treat `event_id` as the dedupe key. FE will retry the same `event_id` on transient failures.
+The server treats `client_event_id` as the dedupe key (deterministic `job_id = evt_${client_event_id}`). FE retries the same `client_event_id` on transient failures.
 
 ### Batch envelope (FE → BE)
 
-When the bulk endpoint is available, FE sends:
+The wire shape is fixed by `IngestBatchRequest` in `shared/schemas.py`:
 
 ```ts
-type EventBatch = {
-  batch_id: string;          // UUIDv4 — idempotency key for the batch
-  events: ClientEvent[];     // FIFO order, length 1..MAX_BATCH_SIZE
-  client_sent_at: string;    // ISO timestamp at send
+type IngestBatchRequest = {
+  events: IngestEventRequest[];     // FIFO order, length 1..100 (BE-enforced cap)
 };
 ```
 
-Server-side expectations FE relies on:
+The FE keeps a logical `batch_id` (UUID) for its own logs/diagnostics, but it does **not** send it on the wire — the server does not require it.
 
-- 2xx response means batch accepted; FE may delete those `event_id`s from IndexedDB.
-- 4xx response with structured error means the batch is malformed — FE drops it (do not loop forever on poison pills).
-- 5xx / network error means FE retains and retries with backoff.
-- Server dedupes individual `event_id`s server-side (so partial retransmits are safe).
+Server-side response handling (per `IngestBatchResponse`):
+
+- HTTP 200 with `results[]` is the expected success path.
+- For each `result`:
+  - `status === "queued"` → delete the matching `client_event_id` from IndexedDB.
+  - `status === "rejected"` → do **not** retry. Reasons today:
+    - `"no_consent_record"` → no consent doc for this customer; surface a consent prompt.
+    - `"missing_personalization_scope"` → user opted out; drop and stop emitting until consent changes.
+- HTTP 4xx other than per-event rejection (e.g. 422 schema error) → batch is malformed, drop it (do not loop forever on poison pills). Log to debug for repro.
+- HTTP 5xx / network error → retain and retry the batch with exponential backoff.
+- HTTP 401 → token expired. Pause flushes. Trigger auth re-login. Resume flushing once a new token lands.
+- Hard cap `events.length <= 100` per request. The tracker chunks larger queues into multiple requests.
 
 ### Flush triggers
 
@@ -348,7 +486,7 @@ The tracker decides to flush when **any** of these fire:
 ### Reliability rules
 
 1. **Persist before send.** Every event is written to IndexedDB at `trackEvent()` time, not at flush time. This means a tab kill between enqueue and flush still leaves the event recoverable.
-2. **Acknowledged delete.** On 2xx, delete only the `event_id`s that came back as accepted. Do not delete on partial failure.
+2. **Acknowledged delete.** On 2xx, delete only the `client_event_id`s whose result is `status === "queued"`. Leave the rest in IndexedDB to be retried (or marked dead on `rejected`).
 3. **Retry policy.** Exponential backoff per batch attempt: 1s, 2s, 4s, 8s, capped at 30s. Reset on success.
 4. **Max age.** Drop persisted events older than 7 days at boot (configurable). Avoid uploading stale signal weeks later.
 5. **Cap on queue size.** Hard cap at `MAX_QUEUE_SIZE` (default 1000). When exceeded, drop the **oldest** events (FIFO eviction) and log a debug counter.
@@ -370,13 +508,15 @@ Implemented inside the producer side (before enqueue), not on the server:
 
 These rules belong inside `trackEvent()` so callers can stay simple.
 
-### Auth note (pending-auth)
+### Auth integration (RESOLVED — auth shipped)
 
-Today FE will resolve `customer_id` from a temporary identity provider (demo customer or local stub). When backend ships auth:
+The tracker no longer carries `customer_id` on the wire — `IngestEventRequest` does not include it. Identity resolution lives entirely in the JWT middleware:
 
-- `customer_id` will move out of payload and become server-resolved from the session/JWT.
-- The `ClientEvent.customer_id` field may either be dropped from FE or retained as a hint that the server may verify against the session.
-- The tracker module must isolate identity resolution into a single function so this swap is one-line.
+- the tracker pulls the current Bearer token from the auth/token store at flush time and sets the `Authorization` header.
+- if the token store reports no session, the tracker pauses flushes (events still persist to IndexedDB) and waits for an auth event.
+- on `auth:login` (new token), drain pending events.
+- on `auth:logout` or `auth:expired`, freeze the flusher, do **not** purge stored events automatically (a deliberate logout flow can call `purge()`).
+- on `auth:user_changed` (different `customer_id` after login as another user), purge any pending events that were enqueued under the previous identity. Events are tied to the JWT they will be sent under, so cross-identity carryover is unsafe.
 
 ### Recommendation API integration
 
@@ -392,86 +532,125 @@ Recommendations follow the rules in `apps/web/event-types-description.md` (secti
 3. All `context` strings come from a single `Context.*` helper module — no string concatenation at call sites.
 4. Context format is strictly `lowercase + underscores`, no PII, no SKUs, no timestamps.
 5. React Query caching:
-   - cache key: `["recommend", customer_id, context]`
-   - `staleTime`: 5 minutes (mirrors Redis offer cache TTL on the server)
-   - background refetch disabled by default; explicit invalidation only on consent change or persona switch.
-6. Backend currently exposes a single `GET /recommend?customer_id=&context=`. Until backend ships rail-style endpoints, FE rail components consume the same single endpoint with different `context` values and FE composes the page-level layout.
-7. After auth lands, `customer_id` is dropped from the query and resolved server-side (pending-auth).
+   - cache key: `["recommend", customer_id, context]` where `customer_id` comes from the auth/token store.
+   - `staleTime`: 5 minutes (mirrors Redis offer cache TTL on the server).
+   - background refetch disabled by default; explicit invalidation only on consent change, persona switch, or auth identity change.
+6. Backend exposes a single `GET /recommend?context=...`. Customer identity is resolved server-side from the JWT — FE does **not** pass `customer_id` in the query. Until backend ships rail-style endpoints, FE rail components consume the same single endpoint with different `context` values and FE composes the page-level layout.
+7. On 401 from `/recommend`, fall back to the generic/cold-start visual state in `HomePersonalizedSection` and similar components, and trigger the auth-store re-login flow.
 
+## Token storage strategy
 
+The Bearer token returned from `/login` and `/register` must be persisted in a way that survives reload but does not leak to other origins or unrelated scripts:
 
-### Phase 5.0 - Discovery lock (current)
+- **Choice:** `localStorage` under a single namespaced key, e.g. `hyperpersona.auth.v1`, holding `{ token, customer_id, email, expires_at_ms }`.
+- **Rationale:**
+  - We do not need cross-tab cookie behavior or server-side session mirroring at this stage.
+  - The backend issues a JWT — there is no refresh token rotation yet, so HttpOnly cookie is not yet justified.
+  - `localStorage` lets us read the token synchronously on app boot without an extra round trip.
+- **XSS risk note:** localStorage is reachable from any script on the origin. Mitigations:
+  - strict CSP once the static deploy is finalized,
+  - never `dangerouslySetInnerHTML` user-supplied content,
+  - keep token TTL short (`expires_in` from the server) and route to login on expiry.
+- **Migration path:** if/when the backend adds refresh tokens or HttpOnly session cookies, this module is the only place that needs to change.
+- **Multi-tab consistency:** subscribe to `storage` events so a logout in one tab logs out other tabs.
+
+Module location: `apps/web/src/features/auth/tokenStore.ts`. Shape:
+
+```ts
+type AuthSession = {
+  token: string;
+  customer_id: string;
+  email: string;
+  expires_at_ms: number;        // Date.now() + expires_in * 1000 at issue time
+};
+
+export function getSession(): AuthSession | null;
+export function setSession(s: AuthSession): void;
+export function clearSession(): void;
+export function isExpired(s: AuthSession | null, skewMs?: number): boolean;
+export function onSessionChange(cb: (s: AuthSession | null) => void): () => void;
+```
+
+## Phased integration plan
+
+### Phase 5.0 — Discovery lock (current)
 
 - freeze this document as single source of truth for integration sequencing.
-- confirm endpoint contracts with backend team.
+- circulate to FE + BE owners and resolve any disagreement on contract shapes before code lands.
 
-### Phase 5.1 - Integration scaffolding (no endpoint swaps yet)
+### Phase 5.1 — Integration scaffolding (no endpoint swaps yet)
 
-- implement FE adapter boundary and query key factory.
-- implement FE normalized error handling.
-- add capability-flag strategy (`real`, `mock`, `hybrid` per resource family).
+- implement FE adapter boundary so feature code never imports raw paths.
+- add canonical error envelope mapper (`{ status, code, message, retryable }`).
+- add capability flags (`real | mock`) per resource family.
+- add central query key factory keyed on `(customer_id, resource, params)`.
 
-### Phase 5.2 - Low-risk real backend adoption
+### Phase 5.2 — Auth integration (FIRST real cutover)
 
-- integrate real:
-  - consent (through adapter with current route shape),
-  - jobs,
-  - traces,
-  - customer delete.
-- keep catalog/search/reviews/profile/checkout/recommendations on MSW.
+This is the unblocking phase for everything else. No other real-backend cutover happens before this lands.
 
-### Phase 5.3 - Catalog/search migration (when backend ready)
+- ship `tokenStore.ts` per *Token storage strategy* above.
+- ship `apiClient.register({ email, password })` and `apiClient.login({ email, password })`.
+- ship a minimal login + register page set + protected-route wrapper. UX can be functional, not polished.
+- ship `Authorization: Bearer <token>` injection in `apiClient` for non-public routes.
+- ship 401 handling: clear session → emit `auth:expired` → redirect to login → preserve return URL.
+- ship `apiClient.logout()` (client-side; clears session, invalidates query cache scoped by `customer_id`).
+- ship a `useAuth()` hook reading from the token store via `onSessionChange`, exposed to the rest of the app.
+- update React Query: keys derive `customer_id` from `useAuth()`; on auth identity change, invalidate the entire `["recommend", ...]`, `["consent", ...]`, etc. namespace.
+- demo persona switcher on the demo lab page is decoupled from real auth — it controls a separate "demo persona" overlay, not the real customer identity.
 
-- switch catalog + search endpoints to real backend as a single slice.
-- verify facet-count semantics and pagination parity before enabling by default.
+### Phase 5.3 — Consent + customer-delete + jobs + traces
 
-### Phase 5.4 - PDP reviews migration
+These are small, JWT-derived, low-risk cutovers and unlock the privacy and observability surfaces.
 
-- switch reviews endpoints to real backend.
-- verify optimistic updates, duplicate-review behavior, helpful vote idempotency.
+- `apiClient.getConsent()` → `GET /consent` (no `customer_id` arg).
+- `apiClient.updateConsent({ scopes, data_retention_days })` → `POST /consent` (was `PUT`).
+- `apiClient.deleteAccount()` → `DELETE /customer`. Wire to a real privacy/right-to-erase flow.
+- `apiClient.getJob(jobId)` → `GET /jobs/{job_id}`.
+- `apiClient.getTraces(jobId)` → `GET /traces/{job_id}`.
+- expose job/trace lookups in the recommendation audit drawer for stakeholder demos.
 
-### Phase 5.5 - Profile + account migration
+### Phase 5.4 — Event tracker + bulk ingestion
 
-- switch profile/explanations/debug reads + checkout/orders/addresses.
+The bulk endpoint exists; this is the integration moment. Implement the architecture in *Event tracking integration spec* in full:
+
+1. Build the tracker module under `apps/web/src/features/events/tracker/` (types + IndexedDB layer + flush controller + transport).
+2. Migrate `apiClient.trackEvent()` callsites to enqueue through the tracker.
+3. Switch the transport to `POST /events/batch`. Use the singular `POST /events` only as a one-off compatibility test in dev.
+4. Consume `IngestBatchResponse.results[]` and delete only `client_event_id`s with `status === "queued"`.
+5. Surface per-event `rejected` reasons in dev console + telemetry counter (`events.rejected.no_consent`, `events.rejected.missing_personalization_scope`).
+6. Roll out behind `tracking.enabled` capability flag for staged enablement.
+7. Verify reliability across: tab close (pagehide), reload (boot drain), offline → online, consent revoke mid-buffer, auth user-switch.
+
+### Phase 5.5 — Recommendation `/recommend` cutover
+
+- `apiClient.getRecommendation(context)` → `GET /recommend?context=<encoded>`.
+- compose all rail surfaces (`HomePersonalizedSection`, PDP rails, cart rails, etc.) on top of this single endpoint using `Context.*` helpers from `event-types-description.md`.
+- React Query: `["recommend", customer_id, context]`, `staleTime: 5 minutes`, no background refetch.
+- 401 path: fall back to generic/cold-start UI, trigger auth re-login.
+- 504 path (worker timeout from `/recommend`): show generic fallback rail + retry-once button — do not auto-retry on a hot path.
+- keep MSW rail-style endpoints (`/recommendations/*`) registered for any surfaces backend hasn't shipped, but route them through the same `getRecommendation(context)` adapter so component code is uniform.
+
+### Phase 5.6 — Catalog + search migration (gated on BE delivery)
+
+- when backend ships catalog endpoints, swap as a single slice (not piecemeal across categories vs. products vs. facets).
+- verify facet-count semantics, pagination, sort, and free-delivery filter parity before enabling.
+
+### Phase 5.7 — PDP reviews migration (gated on BE delivery)
+
+- swap reviews and helpful-votes endpoints.
+- verify optimistic updates, duplicate-review behavior, helpful-vote idempotency.
+
+### Phase 5.8 — Profile + account migration (gated on BE delivery)
+
+- swap profile/explanations/debug reads + checkout/orders/addresses.
 - enforce real backend error and empty-state UX.
-
-### Phase 5.6 - Event and recommendation integration (deferred until preceding slices are stable)
-
-Hold reasons:
-
-- backend bulk events endpoint is being authored by backend devs.
-- recommendation rail strategy may change once backend exposes more than `GET /recommend`.
-
-Steps when unblocked:
-
-1. **Event tracker module**
-   - implement the architecture described in *Event tracking integration spec* above.
-   - keep the new module behind a `tracking.enabled` capability flag so it can be rolled out gradually.
-   - integrate with consent state so revocation flushes/purges per policy.
-2. **Endpoint cutover**
-   - swap `apiClient.trackEvent()` to use `POST /events/batch` only.
-   - retire any per-event `POST /events` callsites.
-3. **Recommendation cutover**
-   - switch FE recommendation queries from MSW to the real `GET /recommend` using `Context.*` helpers.
-   - keep React Query keys stable: `["recommend", customer_id, context]`.
-4. **Job + trace surfacing**
-   - add adapter methods for `GET /jobs/{job_id}` and `GET /traces/{job_id}`.
-   - wire optional debug surfacing for recommendation provenance.
-
-### Phase 5.7 - Auth contract re-alignment (pending-auth)
-
-When backend publishes auth endpoints:
-
-- replace the temporary identity resolver with a session-aware identity provider.
-- remove explicit `customer_id` from FE-emitted bodies and querystrings where the server now derives it from the session.
-- re-review every `(pending-auth)` block in this document and update FE adapter shapes.
-- update `API_REQUIREMENTS.md` and `API_HANDOVER_STATUS.md` to reflect the auth-aware contract.
 
 ## Exit criteria for "ready to start real integration"
 
 - this document approved by FE + BE owners.
-- backend confirms route/method/shape for consent and recommendation strategy.
-- FE adapter layer merged with capability flags and error normalization.
-- no component-level direct dependency on backend route shape.
-- event tracker design validated against the bulk endpoint contract before implementation begins.
-- pending-auth blocks acknowledged so no integration work is blocked on contract churn that's already known.
+- token store + authenticated `apiClient` merged behind capability flags before any other cutover.
+- normalized error mapper covers `{ detail }`, `{ error }`, network, and 401-expiry paths.
+- event tracker passes reliability checklist (tab close, reload, offline, consent revoke, auth switch) against the real `POST /events/batch` in dev.
+- no component imports raw API paths; all access goes through `apiClient`.
+- `API_REQUIREMENTS.md` and `API_HANDOVER_STATUS.md` updated post-auth so handover docs and integration docs agree.
