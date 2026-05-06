@@ -76,7 +76,7 @@ class CheckoutService:
             "status": "placed",
             "placedAt": placed_at,
             "total": total,
-            "currency": "CAD",
+            "currency": "INR",
             "destinationLabel": destination_label,
             "lineCount": sum(l.quantity for l in lines),
             "deliveryAddressId": delivery_address_id,

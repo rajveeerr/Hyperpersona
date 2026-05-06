@@ -132,6 +132,40 @@ export async function deleteEventsByIds(ids: string[]): Promise<void> {
 }
 
 /**
+ * Reset retry metadata on every pending row — `next_attempt_at = 0`,
+ * `attempt_count = 0`. Called from boot drain so events stuck on a stale
+ * backoff timestamp from a prior session (e.g. a 5xx storm before refresh)
+ * become immediately retriable. Returns the number of rows touched.
+ */
+export async function resetRetryMetadata(): Promise<number> {
+  const db = await openDb();
+  const transaction = db.transaction(STORE, "readwrite");
+  const store = transaction.objectStore(STORE);
+  let touched = 0;
+  await new Promise<void>((resolve, reject) => {
+    const cursorReq = store.openCursor();
+    cursorReq.onsuccess = () => {
+      const cursor = cursorReq.result;
+      if (!cursor) {
+        resolve();
+        return;
+      }
+      const row = cursor.value as StoredEvent;
+      if (row.next_attempt_at !== 0 || row.attempt_count !== 0) {
+        row.next_attempt_at = 0;
+        row.attempt_count = 0;
+        cursor.update(row);
+        touched += 1;
+      }
+      cursor.continue();
+    };
+    cursorReq.onerror = () => reject(cursorReq.error ?? new Error("indexeddb reset cursor failed"));
+  });
+  await promisifyTx(transaction);
+  return touched;
+}
+
+/**
  * Bump retry metadata for a list of events that failed at the transport level.
  * Caller decides the next attempt timestamp (exponential backoff lives in
  * `tracker.ts` so the schedule is observable from one place).

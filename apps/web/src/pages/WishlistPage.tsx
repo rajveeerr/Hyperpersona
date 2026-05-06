@@ -8,6 +8,7 @@ import { fromWishlistLine } from "@/features/events/payloads";
 import { useSpecTrack } from "@/features/events/specEvents";
 import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
 import { recommendProductsToProducts } from "@/features/recommendations/mappers";
+import { resolveRailCopy } from "@/features/recommendations/railCopy";
 import { useRemoveFromWishlist, useWishlistQuery } from "@/features/wishlist/useWishlist";
 import { apiClient } from "@/shared/api/client";
 import type { WishlistLine } from "@/shared/api/contracts";
@@ -163,17 +164,28 @@ export function WishlistPage() {
         </div>
       )}
 
-      {ready && recommendationsQuery.data && recommendationsQuery.data.products.length > 0 ? (
-        <RecommendationRail
-          products={recommendProductsToProducts(recommendationsQuery.data.products)}
-          sourceContext={wishlistContext}
-          title="More to consider"
-          subtitle="Recommended"
-          reason={recommendationsQuery.data.personalization_reason ?? undefined}
-          personalized={Boolean(recommendationsQuery.data.personalization_reason)}
-          presentation="default"
-        />
-      ) : null}
+      {ready && recommendationsQuery.data && recommendationsQuery.data.products.length > 0
+        ? (() => {
+            const rail = resolveRailCopy(recommendationsQuery.data, {
+              eyebrow: "Recommended",
+              headline: "More to consider for your wishlist",
+              subtitle: "Items in line with what you've already saved.",
+              modeLabel: "More like this",
+            });
+            return (
+              <RecommendationRail
+                products={recommendProductsToProducts(recommendationsQuery.data.products)}
+                sourceContext={wishlistContext}
+                title={rail.headline}
+                subtitle={rail.eyebrow}
+                reason={rail.subtitle}
+                personalized={Boolean(recommendationsQuery.data.personalization_reason)}
+                modeLabel={rail.mode_label}
+                presentation="default"
+              />
+            );
+          })()
+        : null}
     </div>
   );
 }

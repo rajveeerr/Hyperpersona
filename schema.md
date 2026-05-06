@@ -76,7 +76,7 @@ Three vector indexes. All three have the same shape (id + customer_id + text + 1
 | --- | --- | --- |
 | `id` | UUID per fact. | Primary key in OpenSearch. |
 | `customer_id` | The owner of the fact. | Used as a filter at query time so we only retrieve this customer's facts. |
-| `text` | A short declarative sentence: `"prefers trail running"`, `"sensitive to >$200"`. | Human-readable. Also fed into the recommender prompt. |
+| `text` | A short declarative sentence: `"prefers trail running"`, `"sensitive to >₹16,600"`. | Human-readable. Also fed into the recommender prompt. |
 | `vector` | 1024 floats — the Titan embedding of the text. | Enables semantic search: "give me facts similar to *outdoor adventure preferences*" without keyword matching. |
 | `source_event` | The `event_id` this fact was extracted from. | Audit trail. If a recommendation cites a fact, we can trace it back to the originating event. |
 | `timestamp` | When the fact was extracted (not when the event happened — those can differ). | Used by ACE ranking: a fact from yesterday weighs more than one from a year ago. |
@@ -312,7 +312,7 @@ Three vector indexes. All three have the same shape (id + customer_id + text + 1
 | --- | --- | --- |
 | `id` | UUID per fact. | Primary key in OpenSearch. |
 | `customer_id` | The owner of the fact. | Used as a filter at query time so we only retrieve this customer's facts. |
-| `text` | A short declarative sentence: `"prefers trail running"`, `"sensitive to >$200"`. | Human-readable. Also fed into the recommender prompt. |
+| `text` | A short declarative sentence: `"prefers trail running"`, `"sensitive to >₹16,600"`. | Human-readable. Also fed into the recommender prompt. |
 | `vector` | 1024 floats — the Titan embedding of the text. | Enables semantic search: "give me facts similar to *outdoor adventure preferences*" without keyword matching. |
 | `source_event` | The `event_id` this fact was extracted from. | Audit trail. If a recommendation cites a fact, we can trace it back to the originating event. |
 | `timestamp` | When the fact was extracted (not when the event happened — those can differ). | Used by ACE ranking: a fact from yesterday weighs more than one from a year ago. |

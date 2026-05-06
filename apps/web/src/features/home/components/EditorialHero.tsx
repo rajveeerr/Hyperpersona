@@ -106,7 +106,7 @@ export const EditorialHero = () => {
                 </button>
               </div>
               <Link to="/catalog" className={tw.buttonEditorialBag}>
-                Add to bag — $98
+                Add to bag — ₹8,134
               </Link>
             </div>
           </div>

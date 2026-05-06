@@ -12,6 +12,7 @@ import { fromCartLine, variantSnapshot } from "@/features/events/payloads";
 import { useSpecTrack } from "@/features/events/specEvents";
 import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
 import { recommendProductsToProducts } from "@/features/recommendations/mappers";
+import { resolveRailCopy } from "@/features/recommendations/railCopy";
 import { apiClient } from "@/shared/api/client";
 import { formatCurrency } from "@/shared/lib/format";
 import { tw } from "@/shared/ui/tw";
@@ -227,17 +228,28 @@ export function CheckoutForm() {
           </Link>
         </div>
 
-        {postPurchaseQuery.data && postPurchaseQuery.data.products.length > 0 ? (
-          <RecommendationRail
-            products={recommendProductsToProducts(postPurchaseQuery.data.products)}
-            sourceContext={postPurchaseContext}
-            title="Worth considering for next time"
-            subtitle="Curated for you"
-            reason={postPurchaseQuery.data.personalization_reason ?? undefined}
-            personalized={Boolean(postPurchaseQuery.data.personalization_reason)}
-            presentation="default"
-          />
-        ) : null}
+        {postPurchaseQuery.data && postPurchaseQuery.data.products.length > 0
+          ? (() => {
+              const rail = resolveRailCopy(postPurchaseQuery.data, {
+                eyebrow: "Curated for you",
+                headline: "Worth considering for next time",
+                subtitle: "Pair-with picks for your latest order.",
+                modeLabel: "Editor's picks",
+              });
+              return (
+                <RecommendationRail
+                  products={recommendProductsToProducts(postPurchaseQuery.data.products)}
+                  sourceContext={postPurchaseContext}
+                  title={rail.headline}
+                  subtitle={rail.eyebrow}
+                  reason={rail.subtitle}
+                  personalized={Boolean(postPurchaseQuery.data.personalization_reason)}
+                  modeLabel={rail.mode_label}
+                  presentation="default"
+                />
+              );
+            })()
+          : null}
       </div>
     );
   }

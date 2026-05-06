@@ -30,11 +30,21 @@ type RecommendationRailProps = {
    */
   reason?: string;
   /**
-   * Whether the BE ran a personalized path. Renders a "Generic mode" pill
-   * when false. Derived at the call site from `personalization_reason !== null`
-   * for `/recommend`, or hardcoded `false` for popular-products fallbacks.
+   * Whether the BE ran a personalized path. Drives analytics
+   * (`recommendation_impression` / `recommendation_clicked`) and the
+   * per-tile accent label. Derived at the call site from
+   * `personalization_reason !== null` for `/recommend`, or hardcoded
+   * `false` for popular-products fallbacks.
    */
   personalized?: boolean;
+  /**
+   * Optional pill rendered next to the headline. Pass `rail.mode_label`
+   * from the `/recommend` response — null when personalization fired,
+   * a surface-tuned string ("Editor's picks", "Top in this category",
+   * "Trending now") when generic. Replaces the old hardcoded
+   * "Generic mode" copy with something that still reads editorial.
+   */
+  modeLabel?: string | null;
   /**
    * `editorial` — home personalized strip (cream/white story).
    * `pdp` — product page; same micro-label + prose with quieter chrome.
@@ -52,6 +62,7 @@ export function RecommendationRail({
   subtitle,
   reason,
   personalized = true,
+  modeLabel,
   presentation = "default",
 }: RecommendationRailProps) {
   const track = useTrackEvent();
@@ -118,8 +129,8 @@ export function RecommendationRail({
             </p>
           ) : null}
         </div>
-        {!personalized ? (
-          <span className={`${tw.chip} shrink-0`}>Generic mode</span>
+        {modeLabel ? (
+          <span className={`${tw.chip} shrink-0`}>{modeLabel}</span>
         ) : null}
       </div>
       <ProductGrid
