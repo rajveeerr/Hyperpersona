@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "moduleResolution": "Bundler",
+    "types": [
+      "node"
+    ],
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.vite/tsconfig.node.tsbuildinfo"
+  },
+  "include": [
+    "vite.config.ts"
+  ]
+}

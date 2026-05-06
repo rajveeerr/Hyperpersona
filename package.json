@@ -1,0 +1,18 @@
+{
+  "name": "hyperpersona",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace @hyperpersona/web run dev",
+    "build:web": "npm --workspace @hyperpersona/web run build",
+    "lint:web": "npm --workspace @hyperpersona/web run lint",
+    "test:web": "npm --workspace @hyperpersona/web run test -- --run"
+  },
+  "msw": {
+    "workerDirectory": [
+      "apps/web/public"
+    ]
+  }
+}

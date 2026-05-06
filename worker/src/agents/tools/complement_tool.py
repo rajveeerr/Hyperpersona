@@ -133,7 +133,7 @@ def generate_complement_recommendation(
     customer_facts = customer_facts or []
 
     # 1. Resolve cart items
-    cart_products = dynamo.batch_get_products(cart_item_ids) if cart_item_ids else []
+    cart_products = dynamo.batch_get_recommender_products(cart_item_ids) if cart_item_ids else []
     if not cart_products:
         return {
             "recommendations": [],
@@ -145,7 +145,7 @@ def generate_complement_recommendation(
 
     # 2. Candidate pool — full catalog minus cart items (small-catalog assumption)
     cart_id_set = {p["product_id"] for p in cart_products}
-    catalog = dynamo.scan_products()
+    catalog = dynamo.scan_recommender_products()
     candidates = [c for c in catalog if c["product_id"] not in cart_id_set]
 
     # 3. Ask Claude

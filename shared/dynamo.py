@@ -11,11 +11,19 @@ import boto3
 from boto3.dynamodb.conditions import Key
 
 from .constants import (
+    TABLE_CART_ITEMS,
+    TABLE_CATEGORIES,
     TABLE_CUSTOMER_AUTH,
     TABLE_CUSTOMER_CONSENT,
     TABLE_CUSTOMER_EVENTS,
+    TABLE_CUSTOMER_PROFILE,
     TABLE_JOBS,
+    TABLE_ORDERS,
     TABLE_PRODUCT_CATALOG,
+    TABLE_PRODUCT_REVIEWS,
+    TABLE_PRODUCTS,
+    TABLE_REVIEW_VOTES,
+    TABLE_WISHLIST_ITEMS,
 )
 
 
@@ -33,6 +41,10 @@ def _decimalize(value):
     if isinstance(value, list):
         return [_decimalize(v) for v in value]
     return value
+
+
+# Backwards-compat alias: ecommerce write methods reference this name.
+_coerce_floats = _decimalize
 
 
 class DynamoClient:
@@ -222,9 +234,291 @@ class DynamoClient:
         )
         return resp.get("Item")
 
-    # --- product_catalog ---------------------------------------------------
+    # --- products (storefront) ---------------------------------------------
+    # NOTE: products are also indexed in the OpenSearch product-catalog
+    # collection. Mutations MUST go through the CatalogWriter service so
+    # both stores stay in sync. Direct callers of put_product / delete
+    # bypass that and cause drift; the reconcile script is the recovery.
 
     def put_product(self, product: dict) -> None:
+        item = _strip_empty_sets(_coerce_floats({
+            "PK": f"PRODUCT#{product['slug']}",
+            "SK": "META",
+            **product,
+        }))
+        self.table(TABLE_PRODUCTS).put_item(Item=item)
+
+    def get_product_by_slug(self, slug: str) -> dict | None:
+        resp = self.table(TABLE_PRODUCTS).get_item(
+            Key={"PK": f"PRODUCT#{slug}", "SK": "META"}
+        )
+        return resp.get("Item")
+
+    def scan_products(self) -> list[dict]:
+        """Return every product. Catalog is small (~hundreds of SKUs) so
+        full-scan is fine; the snapshot service caches the result."""
+        items: list[dict] = []
+        last_key: dict | None = None
+        while True:
+            kwargs = {}
+            if last_key:
+                kwargs["ExclusiveStartKey"] = last_key
+            resp = self.table(TABLE_PRODUCTS).scan(**kwargs)
+            items.extend(resp.get("Items", []))
+            last_key = resp.get("LastEvaluatedKey")
+            if not last_key:
+                break
+        return items
+
+    def delete_product(self, slug: str) -> None:
+        self.table(TABLE_PRODUCTS).delete_item(
+            Key={"PK": f"PRODUCT#{slug}", "SK": "META"}
+        )
+
+    def update_product_review_aggregates(
+        self, slug: str, rating: float, review_count: int
+    ) -> None:
+        """Write-through update for review aggregates. Vector unchanged
+        because rating/reviewCount aren't part of the embed text."""
+        self.table(TABLE_PRODUCTS).update_item(
+            Key={"PK": f"PRODUCT#{slug}", "SK": "META"},
+            UpdateExpression="SET rating = :r, reviewCount = :c",
+            ExpressionAttributeValues={
+                ":r": Decimal(str(rating)),
+                ":c": review_count,
+            },
+        )
+
+    # --- categories --------------------------------------------------------
+
+    def put_category(self, category: dict) -> None:
+        item = _strip_empty_sets({
+            "PK": "CATEGORY",
+            "SK": f"CATEGORY#{category['slug']}",
+            **category,
+        })
+        self.table(TABLE_CATEGORIES).put_item(Item=item)
+
+    def list_categories(self) -> list[dict]:
+        resp = self.table(TABLE_CATEGORIES).query(
+            KeyConditionExpression=Key("PK").eq("CATEGORY")
+        )
+        return resp.get("Items", [])
+
+    # --- product_reviews ---------------------------------------------------
+    # SK is REVIEW#{review_id} (no created_at prefix) so update + delete
+    # don't require knowing the timestamp. created_at lives on the row;
+    # services sort in Python after a Query returns.
+
+    def put_review(self, slug: str, review: dict) -> None:
+        """Insert a new review. Use ConditionExpression to enforce
+        one-per-customer-per-product via the GSI lookup at the service
+        layer (we can't condition on a GSI item here, but the service
+        checks first via get_viewer_review)."""
+        item = _strip_empty_sets(_coerce_floats({
+            "PK": f"PRODUCT#{slug}",
+            "SK": f"REVIEW#{review['id']}",
+            "product_slug": slug,  # GSI sort key
+            "customer_id": review.get("customer_id"),  # GSI partition key
+            **review,
+        }))
+        self.table(TABLE_PRODUCT_REVIEWS).put_item(Item=item)
+
+    def list_reviews_for_product(self, slug: str) -> list[dict]:
+        """Return all reviews for a product. Pagination + sort handled
+        in the service layer; review counts per SKU stay small."""
+        resp = self.table(TABLE_PRODUCT_REVIEWS).query(
+            KeyConditionExpression=Key("PK").eq(f"PRODUCT#{slug}"),
+        )
+        return resp.get("Items", [])
+
+    def get_review(self, slug: str, review_id: str) -> dict | None:
+        resp = self.table(TABLE_PRODUCT_REVIEWS).get_item(
+            Key={"PK": f"PRODUCT#{slug}", "SK": f"REVIEW#{review_id}"},
+        )
+        return resp.get("Item")
+
+    def get_viewer_review(self, slug: str, customer_id: str) -> dict | None:
+        """One Query on the customer-product-index GSI. Used both for
+        409-on-duplicate-create and for the viewerReview projection on
+        the PDP shape."""
+        resp = self.table(TABLE_PRODUCT_REVIEWS).query(
+            IndexName="customer-product-index",
+            KeyConditionExpression=Key("customer_id").eq(customer_id) & Key("product_slug").eq(slug),
+            Limit=1,
+        )
+        items = resp.get("Items", [])
+        return items[0] if items else None
+
+    def update_review_counters(
+        self,
+        slug: str,
+        review_id: str,
+        helpful_delta: int,
+        not_helpful_delta: int,
+    ) -> dict:
+        """Atomic counter swap. Returns the new counter values so the
+        helpful endpoint can echo them in its response."""
+        from decimal import Decimal as _Decimal  # local to keep import surface tight
+        resp = self.table(TABLE_PRODUCT_REVIEWS).update_item(
+            Key={"PK": f"PRODUCT#{slug}", "SK": f"REVIEW#{review_id}"},
+            UpdateExpression=(
+                "SET helpfulCount = if_not_exists(helpfulCount, :zero) + :hd, "
+                "notHelpfulCount = if_not_exists(notHelpfulCount, :zero) + :nd"
+            ),
+            ExpressionAttributeValues={
+                ":hd": _Decimal(helpful_delta),
+                ":nd": _Decimal(not_helpful_delta),
+                ":zero": _Decimal(0),
+            },
+            ReturnValues="ALL_NEW",
+        )
+        return resp.get("Attributes", {})
+
+    # --- review_votes ------------------------------------------------------
+
+    def get_vote(self, review_id: str, customer_id: str) -> dict | None:
+        resp = self.table(TABLE_REVIEW_VOTES).get_item(
+            Key={"PK": f"REVIEW#{review_id}", "SK": f"CUSTOMER#{customer_id}"},
+        )
+        return resp.get("Item")
+
+    def put_vote(self, review_id: str, customer_id: str, vote: str) -> None:
+        self.table(TABLE_REVIEW_VOTES).put_item(
+            Item={
+                "PK": f"REVIEW#{review_id}",
+                "SK": f"CUSTOMER#{customer_id}",
+                "review_id": review_id,
+                "customer_id": customer_id,
+                "vote": vote,
+            }
+        )
+
+    # --- customer_profile --------------------------------------------------
+
+    def profile_get(self, customer_id: str) -> dict | None:
+        resp = self.table(TABLE_CUSTOMER_PROFILE).get_item(
+            Key={"PK": f"CUSTOMER#{customer_id}", "SK": "PROFILE"}
+        )
+        return resp.get("Item")
+
+    def profile_put(self, customer_id: str, profile: dict) -> None:
+        item = _strip_empty_sets(_coerce_floats({
+            "PK": f"CUSTOMER#{customer_id}",
+            "SK": "PROFILE",
+            **profile,
+        }))
+        self.table(TABLE_CUSTOMER_PROFILE).put_item(Item=item)
+
+    # --- orders ------------------------------------------------------------
+
+    def orders_put(self, customer_id: str, order: dict) -> None:
+        """SK is `ORDER#{id}` (stable) so re-inserts overwrite instead of
+        duplicating. Caller (the service) sorts by `placed_at` in Python."""
+        item = _strip_empty_sets(_coerce_floats({
+            "PK": f"CUSTOMER#{customer_id}",
+            "SK": f"ORDER#{order['id']}",
+            **order,
+        }))
+        self.table(TABLE_ORDERS).put_item(Item=item)
+
+    def orders_list(self, customer_id: str) -> list[dict]:
+        """All orders for a customer. Sort in the service layer (small N)."""
+        resp = self.table(TABLE_ORDERS).query(
+            KeyConditionExpression=Key("PK").eq(f"CUSTOMER#{customer_id}"),
+        )
+        return resp.get("Items", [])
+
+    def orders_delete_all_for_customer(self, customer_id: str) -> int:
+        """Used by the demo seeder to keep re-runs idempotent. Returns
+        number of rows deleted."""
+        rows = self.orders_list(customer_id)
+        for row in rows:
+            self.table(TABLE_ORDERS).delete_item(
+                Key={"PK": row["PK"], "SK": row["SK"]}
+            )
+        return len(rows)
+
+    # --- cart_items --------------------------------------------------------
+
+    def cart_get(self, customer_id: str) -> list[dict]:
+        resp = self.table(TABLE_CART_ITEMS).query(
+            KeyConditionExpression=Key("PK").eq(f"CUSTOMER#{customer_id}"),
+        )
+        return resp.get("Items", [])
+
+    def cart_get_item(self, customer_id: str, product_id: str) -> dict | None:
+        resp = self.table(TABLE_CART_ITEMS).get_item(
+            Key={"PK": f"CUSTOMER#{customer_id}", "SK": f"CART#{product_id}"},
+        )
+        return resp.get("Item")
+
+    def cart_put_item(self, customer_id: str, item: dict) -> None:
+        record = _strip_empty_sets(_coerce_floats({
+            "PK": f"CUSTOMER#{customer_id}",
+            "SK": f"CART#{item['product_id']}",
+            **item,
+        }))
+        self.table(TABLE_CART_ITEMS).put_item(Item=record)
+
+    def cart_delete_item(self, customer_id: str, product_id: str) -> bool:
+        """Returns True if a row existed and was deleted, False otherwise."""
+        existing = self.cart_get_item(customer_id, product_id)
+        if not existing:
+            return False
+        self.table(TABLE_CART_ITEMS).delete_item(
+            Key={"PK": f"CUSTOMER#{customer_id}", "SK": f"CART#{product_id}"}
+        )
+        return True
+
+    def cart_clear(self, customer_id: str) -> int:
+        """Wipe every cart row for a customer. Returns count deleted.
+        Used by /checkout after the order is written."""
+        rows = self.cart_get(customer_id)
+        for row in rows:
+            self.table(TABLE_CART_ITEMS).delete_item(
+                Key={"PK": row["PK"], "SK": row["SK"]}
+            )
+        return len(rows)
+
+    # --- wishlist_items ----------------------------------------------------
+
+    def wishlist_get(self, customer_id: str) -> list[dict]:
+        resp = self.table(TABLE_WISHLIST_ITEMS).query(
+            KeyConditionExpression=Key("PK").eq(f"CUSTOMER#{customer_id}"),
+        )
+        return resp.get("Items", [])
+
+    def wishlist_get_item(self, customer_id: str, product_id: str) -> dict | None:
+        resp = self.table(TABLE_WISHLIST_ITEMS).get_item(
+            Key={"PK": f"CUSTOMER#{customer_id}", "SK": f"WISH#{product_id}"},
+        )
+        return resp.get("Item")
+
+    def wishlist_put_item(self, customer_id: str, item: dict) -> None:
+        record = _strip_empty_sets({
+            "PK": f"CUSTOMER#{customer_id}",
+            "SK": f"WISH#{item['product_id']}",
+            **item,
+        })
+        self.table(TABLE_WISHLIST_ITEMS).put_item(Item=record)
+
+    def wishlist_delete_item(self, customer_id: str, product_id: str) -> bool:
+        existing = self.wishlist_get_item(customer_id, product_id)
+        if not existing:
+            return False
+        self.table(TABLE_WISHLIST_ITEMS).delete_item(
+            Key={"PK": f"CUSTOMER#{customer_id}", "SK": f"WISH#{product_id}"}
+        )
+        return True
+
+    # --- product_catalog (recommender) -------------------------------------
+    # Distinct from the storefront `products` table above. The complement
+    # recommender owns a hand-curated catalog (~40 SKUs with descriptions
+    # used in prompt context) and uses these *_recommender_product methods
+    # so the names don't collide with the storefront's put_product/scan_products.
+
+    def put_recommender_product(self, product: dict) -> None:
         item = _decimalize(_strip_empty_sets({
             "PK": f"PRODUCT#{product['product_id']}",
             "SK": "META",
@@ -232,7 +526,7 @@ class DynamoClient:
         }))
         self.table(TABLE_PRODUCT_CATALOG).put_item(Item=item)
 
-    def batch_put_products(self, products: list[dict]) -> None:
+    def batch_put_recommender_products(self, products: list[dict]) -> None:
         if not products:
             return
         with self.table(TABLE_PRODUCT_CATALOG).batch_writer() as bw:
@@ -244,7 +538,7 @@ class DynamoClient:
                 }))
                 bw.put_item(Item=item)
 
-    def get_product(self, product_id: str) -> dict | None:
+    def get_recommender_product(self, product_id: str) -> dict | None:
         resp = self.table(TABLE_PRODUCT_CATALOG).get_item(
             Key={"PK": f"PRODUCT#{product_id}", "SK": "META"}
         )
@@ -254,7 +548,7 @@ class DynamoClient:
             item.pop("SK", None)
         return item
 
-    def batch_get_products(self, product_ids: list[str]) -> list[dict]:
+    def batch_get_recommender_products(self, product_ids: list[str]) -> list[dict]:
         """Fetches multiple products at once. DDB BatchGetItem caps at 100 keys
         per request — for the hackathon catalog (~40 products) one call suffices."""
         if not product_ids:
@@ -269,7 +563,7 @@ class DynamoClient:
             item.pop("SK", None)
         return items
 
-    def scan_products(self) -> list[dict]:
+    def scan_recommender_products(self) -> list[dict]:
         """Scan the whole catalog. Fine for hackathon-scale (~40 items); for
         production swap to query-by-category via a GSI."""
         resp = self.table(TABLE_PRODUCT_CATALOG).scan()

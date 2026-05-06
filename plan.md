@@ -847,6 +847,23 @@ curl "http://localhost:8000/recommend?customer_id=cust_1&context=looking+for+out
 | DELETE | /customer/{customer_id} | Right-to-delete (GDPR) | API key |
 | GET | /jobs/{job_id} | Get job status | API key |
 | GET | /traces/{job_id} | Get agent traces | API key |
+| GET | /catalog/products/{slug}/reviews | Paginated product reviews (PDP) | API key / session |
+| POST | /catalog/products/{slug}/reviews | Submit shopper review (rating + text) | Auth |
+| PUT | /catalog/products/{slug}/reviews/{id}/helpful | Mark review helpful or not helpful | Auth |
+
+Also wire `POST /events` ingestion for review telemetry (`product_reviews_viewed`, `product_reviews_page_loaded`, `product_review_submitted`, `product_review_engagement`) so workers can treat UGC engagement like other behavioral signals. See `apps/web/API_REQUIREMENTS.md` for full contract text.
+
+**Frontend tracking SDK alignment (new requirement):**
+
+- Add/maintain a lightweight frontend event SDK module to standardize event dispatch (typed API, consent gates, retries/batching, shared context enrichment) instead of feature-by-feature manual emitters.
+- SDK should attach contextual metadata where policy allows:
+  - device type / OS / browser / user agent
+  - local time context (timezone, hour-of-day, day-of-week)
+  - traffic source/referrer/UTM attribution
+  - coarse IP-derived geo context
+  - optional weather context
+  - engagement context (scroll depth on listing/search/PDP, viewport)
+- Ensure event schema supports purchase, return history, search query, and scroll depth so ranking and recommendations can leverage both intent and outcome signals.
 
 **Files to create/modify:**
 

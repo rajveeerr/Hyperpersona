@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "moduleResolution": "Bundler",
+    "types": [
+      "vite/client",
+      "vitest/globals"
+    ],
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.vite/tsconfig.app.tsbuildinfo"
+  },
+  "include": [
+    "src"
+  ]
+}

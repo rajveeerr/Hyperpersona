@@ -1,0 +1,42 @@
+{
+  "customerId": "demo-customer-1",
+  "name": "Ava Chen",
+  "segment": "Performance commuter",
+  "topCategories": ["city-commute", "trail-running"],
+  "explicitPreferences": [
+    {"key": "fit", "label": "Preferred fit", "value": "Tailored but relaxed"},
+    {"key": "budget", "label": "Budget band", "value": "$80-$220"}
+  ],
+  "inferredInterests": [
+    {"id": "interest-1", "label": "Weather-ready gear", "confidence": 0.92, "source": "Viewed shell jackets twice"},
+    {"id": "interest-2", "label": "Trail accessories", "confidence": 0.78, "source": "Searched for socks and light packs"},
+    {"id": "interest-3", "label": "Desk-to-gym utility", "confidence": 0.71, "source": "Repeated city commute category visits"}
+  ],
+  "recentSignals": [
+    "searched for waterproof layers",
+    "added shoes to cart",
+    "saved a commuter bag to wishlist"
+  ],
+  "addresses": [
+    {
+      "id": "addr-home",
+      "label": "Home",
+      "line1": "12 Rue Editoriale",
+      "city": "Montreal",
+      "region": "QC",
+      "postalCode": "H2X 1A1",
+      "country": "CA",
+      "isDefault": true
+    },
+    {
+      "id": "addr-office",
+      "label": "Office",
+      "line1": "400 King St W",
+      "line2": "Suite 900",
+      "city": "Toronto",
+      "region": "ON",
+      "postalCode": "M5V 1K1",
+      "country": "CA"
+    }
+  ]
+}

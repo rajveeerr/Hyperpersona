@@ -8,6 +8,12 @@ venv/
 .DS_Store
 .idea/
 .vscode/
+node_modules/
+.turbo/
+.pnpm-store/
+coverage/
+playwright-report/
+test-results/
 *.egg-info/
 dist/
 build/

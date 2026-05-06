@@ -80,7 +80,7 @@ def handle(job: dict, ctx: dict) -> None:
 
     # Resolve cart for fact-context embedding (and pass through the count to
     # the tool's own batch_get implicitly — tool also fetches; cost is <1ms).
-    cart_products = dynamo.batch_get_products(cart_items) if cart_items else []
+    cart_products = dynamo.batch_get_recommender_products(cart_items) if cart_items else []
 
     t_facts = time.time()
     facts_texts = _retrieve_customer_facts(

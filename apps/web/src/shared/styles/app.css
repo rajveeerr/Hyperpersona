@@ -1,0 +1,163 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&display=swap");
+
+@import "tailwindcss";
+
+/* Semantic design tokens → Tailwind utilities (see FE_PLAN.md, UI_REFERENCE.md) */
+@theme {
+  /* Editorial commerce stack — high-contrast display + neutral UI sans (luxury PDP refs) */
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Playfair Display", ui-serif, Georgia, "Times New Roman", serif;
+
+  /* Letter-spacing: tight display / wordmark; subtle body (refs use near-touching serifs) */
+  --tracking-display: -0.042em;
+  --tracking-display-tight: -0.055em;
+  --tracking-body: -0.012em;
+  --tracking-ui-wide: 0.14em;
+
+  --color-canvas: #f7f1e8;
+  /* Hero + chrome — warm cream (editorial PDP reference, e.g. Sonnette) */
+  --color-hero-canvas: #f5f2ed;
+  /* Next band — stark white vs cream hero */
+  --color-story-canvas: #ffffff;
+  --color-surface: rgba(255, 252, 247, 0.82);
+  --color-surface-strong: #fffdf9;
+  --color-ink: #221c17;
+  --color-muted: #6b6259;
+  --color-accent: #b86f4d;
+  --color-accent-strong: #8f5032;
+  --color-outline: rgba(34, 28, 23, 0.1);
+  --color-success: #5e6f62;
+  --color-warning: #8a6439;
+  --color-error: #8a3f3a;
+  --color-info: #48627a;
+  --color-shadow: rgba(62, 40, 27, 0.06);
+  --color-persona-ring: rgba(216, 92, 47, 0.45);
+  --color-persona-fill: rgba(216, 92, 47, 0.08);
+  --color-consent-active: rgba(53, 105, 75, 0.2);
+  --color-debug-tile: rgba(31, 27, 24, 0.04);
+
+  --motion-duration-fast: 160ms;
+  --motion-duration-base: 240ms;
+  --motion-duration-slow: 420ms;
+  --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --shadow-card: 0 28px 80px var(--color-shadow);
+
+  --radius-card: 22px;
+  --radius-pill: 999px;
+  --radius-inner: 16px;
+  --radius-field: 18px;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  body,
+  h1,
+  h2,
+  h3,
+  p,
+  ul,
+  li {
+    @apply m-0;
+  }
+
+  img {
+    @apply block max-w-full;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  a {
+    @apply text-inherit no-underline;
+  }
+
+  body {
+    @apply min-h-screen font-body text-ink antialiased tracking-body;
+    color-scheme: light;
+    background:
+      radial-gradient(circle at top left, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 32%),
+      linear-gradient(180deg, #faf6ef 0%, #f2e9de 100%);
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible {
+    @apply outline-2 outline-offset-[3px] outline-accent;
+  }
+}
+
+/* Hairline nav / brand links — shared motion, token-backed */
+@layer components {
+  .nav-link-accent {
+    @apply relative after:pointer-events-none after:absolute after:bottom-[-0.2rem] after:left-0 after:h-px after:w-full after:origin-left after:scale-x-0 after:bg-current after:transition-transform after:duration-150 after:ease-out hover:after:scale-x-100 focus-visible:after:scale-x-100;
+  }
+
+  /* Minimal editorial nav — hairline active state, no heavy bar */
+  .nav-link-quiet {
+    @apply text-[0.8125rem] font-medium tracking-[0.02em] text-ink transition-opacity duration-150 hover:opacity-70 focus-visible:opacity-100;
+  }
+
+  .nav-link-quiet[aria-current="page"] {
+    @apply border-b border-ink/80 pb-0.5 opacity-100;
+  }
+
+  .field-input {
+    @apply w-full rounded-field border border-outline bg-white/80 px-4 py-[0.85rem];
+  }
+
+  /** Profile lab — session memory block re-enters when persona changes */
+  @keyframes persona-memory-snap {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .persona-memory-snap {
+    animation: persona-memory-snap var(--motion-duration-slow) var(--motion-ease-standard) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .persona-memory-snap {
+      animation: none;
+    }
+  }
+
+  /** Main route body — subtle opacity snap on navigation (no transform → less vestibular risk). */
+  @keyframes outlet-route-snap {
+    from {
+      opacity: 0.91;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .outlet-route-snap {
+    animation: outlet-route-snap var(--motion-duration-fast) ease-out both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .outlet-route-snap {
+      animation: none;
+    }
+  }
+}

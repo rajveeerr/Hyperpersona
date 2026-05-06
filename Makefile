@@ -30,6 +30,37 @@ setup-db:
 setup-opensearch:
 	docker compose exec worker python /app/scripts/setup_opensearch.py
 
+# Ecommerce M1 — seed products + categories into Dynamo and embed into product-catalog
+# Runs in the server container (it imports server-side schema/writer modules).
+seed-products:
+	docker compose exec server python /app/scripts/seed_products.py
+
+# Recommender catalog (separate `product_catalog` table used by the
+# complement-products recommender). Distinct from the storefront `products`
+# table that `seed-products` writes to.
+seed-recommender-catalog:
+	docker compose exec server python /app/scripts/seed_recommender_catalog.py
+
+# Reconcile Dynamo products with OpenSearch product-catalog (drift recovery).
+# Pass DELETE_ORPHANS=1 to also remove vectors with no matching Dynamo row.
+reconcile-products:
+	docker compose exec server python /app/scripts/reconcile_products.py $(if $(DELETE_ORPHANS),--delete-orphans,)
+
+# Ecommerce M2 — seed reviews + demo customer (auth + profile + orders).
+seed-reviews:
+	docker compose exec server python /app/scripts/seed_reviews.py
+
+seed-demo-customer:
+	docker compose exec server python /app/scripts/seed_demo_customer.py
+
+# One-shot: tables + indexes + all seeds.
+seed-all: setup-db setup-opensearch seed-products seed-reviews seed-demo-customer
+
+# End-to-end smoke for the 17 ecommerce endpoints. Idempotent — safe to
+# re-run against an already-seeded stack.
+smoke-ecom:
+	./scripts/smoke_ecom.sh
+
 # usage: make scan-vectors COLL=customer-facts CUST=cust_1
 # CUST is optional; omit it to scan everything in the collection
 scan-vectors:
