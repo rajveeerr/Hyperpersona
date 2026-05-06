@@ -147,22 +147,40 @@ Supervisor = ManualSupervisor
 
 _STRANDS_SYSTEM_PROMPT = """You are HyperPersona's personalization supervisor.
 
-For each customer event you receive, execute these steps IN ORDER:
-  1. Call check_privacy_tool(customer_id=<id>, text=<event_text>).
-  2. If the result has allowed=False, STOP. Return the reason verbatim.
-     Do NOT call any other tools.
-  3. If allowed=True, call analyze_behavior_tool with EXACTLY:
-       - customer_id = the same customer_id
-       - event_text  = the 'redacted_text' field from step 1's result
-                       (NOT the original raw text — PII must stay redacted)
-       - event_id    = the event_id provided in the prompt
-  4. Return a one-line summary in the form:
-     "stored N facts for customer <id>" (or the privacy reason if blocked).
+You receive a customer event and must route it to the right analysis path.
+
+STEP 1 — ALWAYS call check_privacy_tool(customer_id=<id>, text=<event_text>) first.
+  If allowed=False, STOP. Return the reason verbatim. Do NOT call any other tools.
+
+STEP 2 — If allowed=True, look at the event_type and pick EXACTLY ONE analysis tool:
+
+  ┌──────────────────────────────────────────┬──────────────────────────────────┐
+  │ event_type                                │ tool to call                     │
+  ├──────────────────────────────────────────┼──────────────────────────────────┤
+  │ page_view, scroll, hover, search_no_click│ skip_low_signal_tool             │
+  │   (low-signal — embed only, no facts)     │                                  │
+  ├──────────────────────────────────────────┼──────────────────────────────────┤
+  │ return, complaint, refund, support_ticket│ extract_dispute_reasons_tool     │
+  │   (dispute — extract negative signals)    │                                  │
+  ├──────────────────────────────────────────┼──────────────────────────────────┤
+  │ purchase, add_to_cart, save, search,      │ analyze_behavior_tool            │
+  │ checkout, wishlist_add                    │                                  │
+  │   (high-signal — full fact extraction)    │                                  │
+  └──────────────────────────────────────────┴──────────────────────────────────┘
+
+For ANY analysis tool you choose, pass EXACTLY:
+  - customer_id = the same customer_id
+  - event_text  = the 'redacted_text' field from step 1 (NEVER the raw text)
+  - event_id    = the event_id provided in the prompt
+
+STEP 3 — Return a one-line summary:
+  "stored N facts (tool=<tool>) for customer <id>" — or the privacy reason if blocked.
 
 Strict rules:
-  - Use the redacted_text from step 1, never the raw event_text.
-  - Do not invent facts. Do not summarize tool outputs verbatim.
-  - Do not call any tools beyond check_privacy_tool and analyze_behavior_tool."""
+  - Privacy ALWAYS runs first. No exceptions.
+  - Pick ONE analysis tool — do NOT call multiple analyzers.
+  - Use redacted_text from privacy, never raw event_text. PII must stay redacted.
+  - If event_type doesn't match any row above, default to analyze_behavior_tool."""
 
 
 class StrandsSupervisor:
@@ -201,7 +219,9 @@ class StrandsSupervisor:
         from strands import Agent
 
         from .tools.analyzer_tool import make_analyzer_tool
+        from .tools.dispute_tool import make_extract_dispute_reasons_tool
         from .tools.privacy_tool import make_privacy_tool
+        from .tools.skip_low_signal_tool import make_skip_low_signal_tool
 
         customer_id = event["customer_id"]
         event_id = event["event_id"]
@@ -209,18 +229,22 @@ class StrandsSupervisor:
 
         self.tracer.log(
             job_id, "supervisor", "start",
-            {"customer_id": customer_id, "event_id": event_id},
+            {"customer_id": customer_id, "event_id": event_id,
+             "event_type": event.get("event_type", "unknown")},
             {"event_text_len": len(event_text), "mode": "strands"},
             0.0, "ok",
         )
 
-        # Fresh Agent + hook per invocation so job_id stays scoped to this call.
+        # Four tools: privacy (always first) + three branching analysis tools
+        # the orchestrator picks between based on event_type.
         agent = Agent(
             model=self._model,
             system_prompt=_STRANDS_SYSTEM_PROMPT,
             tools=[
                 make_privacy_tool(self.dynamo, redactor=self.redactor),
                 make_analyzer_tool(self.bedrock, self.vectors),
+                make_skip_low_signal_tool(self.bedrock, self.vectors),
+                make_extract_dispute_reasons_tool(self.bedrock, self.vectors),
             ],
             hooks=[self.tracer.make_strands_hook(job_id)],
         )

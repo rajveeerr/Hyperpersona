@@ -106,23 +106,39 @@ class ManualRecommendSupervisor:
 
 _STRANDS_RECOMMEND_PROMPT = """You are HyperPersona's recommendation supervisor.
 
-For each customer recommendation request, execute these steps IN ORDER:
-  1. Call generate_recommendation_tool(query_context=<the context>) to get a
-     draft. The result is a dict with 'offer' plus internal fields the
-     verifier needs.
-  2. Call verify_recommendation_tool with EXACTLY:
-       - draft_offer    = the 'offer' field from step 1's result
-       - source_context = "use_captured_data"
-     (The verifier closure pulls the real source data from step 1's captured
-      result. You do NOT need to build or pass any other source_context —
-      passing the literal string above is sufficient.)
-  3. Return a one-line confirmation that you generated and verified the
-     recommendation. Do NOT include the offer text in your response —
-     the offer is captured directly from the tool result by the supervisor.
+For each request, route the customer to the right response path.
 
-Do not skip the verifier. Do not call any tools beyond
-generate_recommendation_tool and verify_recommendation_tool. Do not invent
-facts. Do not paraphrase the offer."""
+STEP 1 — ALWAYS call generate_recommendation_tool(query_context=<the context>) FIRST
+to retrieve facts and draft an offer. The result is a dict with 'offer',
+'facts_used', 'behaviors_used', 'conflicts', and other fields.
+
+STEP 2 — Read the result and pick EXACTLY ONE next-step tool:
+
+  ┌────────────────────────────────────────────────┬──────────────────────────────────┐
+  │ Condition on step 1's result                    │ tool to call next                │
+  ├────────────────────────────────────────────────┼──────────────────────────────────┤
+  │ facts_used == 0 AND behaviors_used == 0         │ cold_start_popular_tool          │
+  │   (cold-start — no signal, return generic offer) │   args: context = the context    │
+  ├────────────────────────────────────────────────┼──────────────────────────────────┤
+  │ len(conflicts) >= 3                              │ clarify_intent_tool              │
+  │   (mixed signals — ask the customer)             │   args: context, conflicts       │
+  ├────────────────────────────────────────────────┼──────────────────────────────────┤
+  │ Otherwise (we have signal AND <3 conflicts)      │ verify_recommendation_tool       │
+  │   (normal path — fact-check the draft)           │   args: draft_offer (the 'offer')│
+  │                                                  │         source_context =          │
+  │                                                  │           "use_captured_data"     │
+  └────────────────────────────────────────────────┴──────────────────────────────────┘
+
+STEP 3 — Return a one-line confirmation. Do NOT include the offer text in your
+response — the offer is captured directly from tool results by the supervisor.
+
+Strict rules:
+  - generate_recommendation_tool ALWAYS runs first.
+  - Pick exactly ONE second-step tool based on the conditions above.
+  - When passing source_context to the verifier, pass the literal string
+    "use_captured_data" — the verifier closure pulls real source data from
+    the captured recommender result, you don't need to build it.
+  - Do not invent facts. Do not paraphrase the offer."""
 
 
 class StrandsRecommendSupervisor:
@@ -144,12 +160,17 @@ class StrandsRecommendSupervisor:
         vectors: VectorStoreProtocol,
         tracer: TraceLogger,
         settings,
+        dynamo=None,
     ) -> None:
         self.bedrock_recommender = bedrock_recommender
         self.bedrock_verifier = bedrock_verifier
         self.vectors = vectors
         self.tracer = tracer
         self.settings = settings
+        # Optional — only needed for the cold_start_popular_tool to read
+        # the product catalog. None is safe; cold_start falls back to a
+        # context-only generic offer.
+        self.dynamo = dynamo
 
         # Orchestrator picks tool order; Sonnet is plenty.
         from strands.models import BedrockModel
@@ -163,6 +184,8 @@ class StrandsRecommendSupervisor:
     def run_recommend(self, job_id: str, customer_id: str, context: str) -> dict:
         from strands import Agent, tool
 
+        from .tools.clarify_tool import generate_clarifying_question
+        from .tools.cold_start_tool import cold_start_recommendations
         from .tools.recommender_tool import (
             build_verifier_source_context,
             generate_recommendation,
@@ -177,14 +200,23 @@ class StrandsRecommendSupervisor:
 
         # Captures populated by the @tool closures during the agent run.
         # We can't rely on Claude returning structured data — we build the
-        # response from these.
-        capture: dict[str, dict | None] = {"recommender": None, "verifier": None}
+        # response from these. Four possible captures depending on which path
+        # the orchestrator takes:
+        #   recommender  — always populated (step 1)
+        #   verifier     — populated on the normal path
+        #   cold_start   — populated when facts_used == 0 AND behaviors_used == 0
+        #   clarify      — populated when len(conflicts) >= 3
+        capture: dict[str, dict | None] = {
+            "recommender": None, "verifier": None,
+            "cold_start": None, "clarify": None,
+        }
 
         # Bind dependencies into closures so Claude only sees user-meaningful args.
         # Each tool gets the bedrock client matched to its task.
         bedrock_recommender = self.bedrock_recommender
         bedrock_verifier = self.bedrock_verifier
         vectors = self.vectors
+        dynamo = getattr(self, "dynamo", None)
 
         @tool
         def generate_recommendation_tool(query_context: str) -> dict:
@@ -226,10 +258,63 @@ class StrandsRecommendSupervisor:
             capture["verifier"] = result
             return result
 
+        @tool
+        def cold_start_popular_tool(cs_context: str) -> dict:
+            """Return popular products as a generic offer for cold-start customers.
+
+            Use this ONLY after generate_recommendation_tool returned facts_used=0
+            AND behaviors_used=0 — meaning we have no signal for this customer.
+            Pay $0 in LLM cost instead of wasting an Opus call on a personalization
+            we can't actually do. Skip the verifier afterwards.
+
+            Args:
+                cs_context: the customer's stated context/intent
+
+            Returns:
+                dict with 'offer' (generic offer), 'cold_start' (True), products list.
+            """
+            if dynamo is None:
+                result = {
+                    "tool": "cold_start_popular",
+                    "offer": f"For your {cs_context}, browse our latest collection. We'll personalize as you explore.",
+                    "products": [], "cold_start": True,
+                    "facts_used": 0, "behaviors_used": 0,
+                }
+            else:
+                result = cold_start_recommendations(cs_context, dynamo)
+            capture["cold_start"] = result
+            return result
+
+        @tool
+        def clarify_intent_tool(clarify_context: str, conflicts: list[str]) -> dict:
+            """Ask the customer a clarifying question instead of guessing an offer.
+
+            Use this ONLY when generate_recommendation_tool returned conflicts
+            list with 3+ entries. Skip verifier afterwards — there's no offer
+            to verify, the question IS the response.
+
+            Args:
+                clarify_context: the customer's stated context/intent
+                conflicts: the conflicts list from the recommender result
+
+            Returns:
+                dict with 'offer' (the question), 'clarifying_question' (True).
+            """
+            result = generate_clarifying_question(
+                clarify_context, conflicts, bedrock_recommender,
+            )
+            capture["clarify"] = result
+            return result
+
         agent = Agent(
             model=self._model,
             system_prompt=_STRANDS_RECOMMEND_PROMPT,
-            tools=[generate_recommendation_tool, verify_recommendation_tool],
+            tools=[
+                generate_recommendation_tool,
+                verify_recommendation_tool,
+                cold_start_popular_tool,
+                clarify_intent_tool,
+            ],
             hooks=[self.tracer.make_strands_hook(job_id)],
         )
 
@@ -251,13 +336,30 @@ class StrandsRecommendSupervisor:
             raise
 
         rec = capture["recommender"] or {}
+        cold = capture["cold_start"]
+        clar = capture["clarify"]
         ver = capture["verifier"] or {}
 
-        result = _build_result(rec, ver)
+        # Pick the right response based on which path the orchestrator took.
+        # Order matters — clarify and cold_start are terminal, override verifier.
+        if cold:
+            result = _build_cold_start_result(rec, cold)
+            path = "cold_start"
+        elif clar:
+            result = _build_clarify_result(rec, clar)
+            path = "clarify"
+        else:
+            result = _build_result(rec, ver)
+            path = "normal"
 
         self.tracer.log(
             job_id, "supervisor", "end_recommend",
-            {}, {"verifier_status": ver.get("status", "missing")},
+            {}, {
+                "path": path,
+                "verifier_status": ver.get("status", "missing"),
+                "cold_start": bool(cold),
+                "clarifying": bool(clar),
+            },
             (time.time() - start) * 1000, "ok",
         )
         return result
@@ -284,6 +386,40 @@ def _build_result(rec: dict, ver: dict) -> dict:
         "summaries_used": rec.get("summaries_used", 0),
         "conflicts": rec.get("conflicts", []),
         "ranked_facts": rec.get("ranked_facts", []),
+        "path": "normal",
+    }
+
+
+def _build_cold_start_result(rec: dict, cold: dict) -> dict:
+    """Cold-start path: skip verifier, return cold-start offer + popular products."""
+    return {
+        "offer": cold.get("offer", ""),
+        "verifier_status": "skipped_cold_start",
+        "facts_retrieved": rec.get("facts_retrieved", 0),
+        "facts_used": 0,
+        "behaviors_used": 0,
+        "summaries_used": 0,
+        "conflicts": [],
+        "ranked_facts": [],
+        "products": cold.get("products", []),
+        "cold_start": True,
+        "path": "cold_start",
+    }
+
+
+def _build_clarify_result(rec: dict, clar: dict) -> dict:
+    """Clarify path: skip verifier, return question instead of offer."""
+    return {
+        "offer": clar.get("offer", ""),
+        "verifier_status": "skipped_clarify",
+        "facts_retrieved": rec.get("facts_retrieved", 0),
+        "facts_used": rec.get("facts_used", 0),
+        "behaviors_used": rec.get("behaviors_used", 0),
+        "summaries_used": rec.get("summaries_used", 0),
+        "conflicts": clar.get("conflicts", rec.get("conflicts", [])),
+        "ranked_facts": rec.get("ranked_facts", []),
+        "clarifying_question": True,
+        "path": "clarify",
     }
 
 
@@ -297,6 +433,7 @@ def make_recommend_supervisor(
     vectors: VectorStoreProtocol,
     tracer: TraceLogger,
     settings,
+    dynamo=None,
 ) -> RecommendSupervisorProtocol:
     if mode == "manual":
         log.info("RecommendSupervisor: manual (rec=%s ver=%s)",
@@ -322,6 +459,7 @@ def make_recommend_supervisor(
             bedrock_recommender=bedrock_recommender,
             bedrock_verifier=bedrock_verifier,
             vectors=vectors, tracer=tracer, settings=settings,
+            dynamo=dynamo,
         )
     raise ValueError(
         f"Unknown RECOMMEND_MODE: {mode!r} (expected manual | strands)"
