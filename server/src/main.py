@@ -27,6 +27,7 @@ from .routes import metrics as metrics_route
 from .routes import recommend as recommend_route
 from .routes import reviews as reviews_route
 from .routes import search as search_route
+from .routes import similar_price as similar_price_route
 from .routes import traces as traces_route
 from .services.catalog_snapshot import CatalogSnapshot
 from .services.catalog_writer import CatalogWriter
@@ -56,9 +57,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="HyperPersona Server", version="0.14.0", lifespan=lifespan)
 
-# Middleware order: last added runs FIRST. JWT auth must run before rate
-# limit so unauth'd requests get 401 (and the rate limit can read the
-# resolved customer_id from request.state).
+# Middleware order: last added runs FIRST. So the chain on each request is
+#   CORS → JWT auth → RateLimit → route handler
+# CORS goes outermost so the browser preflight (OPTIONS without an Authorization
+# header) gets answered with a 200 + CORS headers BEFORE the JWT middleware
+# can 401 it. allow_origins is permissive because the FE may run on any of
+# localhost:5173 (Vite), the storefront's deployed origin, or other
+# preview deploys — the JWT itself is the auth gate.
 app.add_middleware(
     RateLimitMiddleware,
     redis_client=redis_client,
@@ -66,13 +71,14 @@ app.add_middleware(
     window_s=60,
 )
 app.add_middleware(JWTAuthMiddleware)
-# CORS runs FIRST (last added). Preflight OPTIONS short-circuits before
-# auth/rate-limit so the browser handshake doesn't get a 401.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=False,  # required by the spec when allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
 )
 
 
@@ -93,6 +99,7 @@ app.include_router(events_route.router)
 app.include_router(jobs_route.router)
 app.include_router(metrics_route.router)
 app.include_router(recommend_route.router)
+app.include_router(similar_price_route.router)
 app.include_router(traces_route.router)
 # Ecommerce routes (M1)
 app.include_router(catalog_route.router)

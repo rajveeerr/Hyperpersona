@@ -75,6 +75,26 @@ class CatalogWriter:
         # script picks up the drift.
         self._dynamo.put_product(product.model_dump(by_alias=True, exclude_none=True))
 
+        # AOSS quirk: VECTORSEARCH collections reject client-supplied `_id`,
+        # so each `index()` call creates a brand-new doc with an auto id —
+        # turning every re-seed into a duplicate-doubler. Delete any existing
+        # slug-matched docs FIRST so the upsert is truly idempotent on AOSS.
+        # Local OpenSearch ignores this (it overwrites by client-supplied id).
+        client = getattr(self._vectors, "client", None)
+        if client is not None and getattr(self._vectors, "is_aoss", False):
+            try:
+                client.delete_by_query(
+                    index=COLLECTION_PRODUCTS,
+                    body={"query": {"term": {"slug": product.slug}}},
+                    conflicts="proceed",
+                    refresh=False,
+                )
+            except Exception:
+                # Non-fatal: missing pre-existing docs is fine, query errors
+                # are logged but don't block the new insert below. Reconcile
+                # cleans up any drift.
+                log.exception("AOSS pre-delete by slug=%s failed", product.slug)
+
         try:
             self._vectors.upsert(
                 COLLECTION_PRODUCTS,

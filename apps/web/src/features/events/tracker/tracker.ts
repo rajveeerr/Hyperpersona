@@ -33,6 +33,7 @@ import {
   markRetry,
   purgeOtherIdentity,
   purgeStale,
+  resetRetryMetadata,
   trimToMaxSize,
 } from "@/features/events/tracker/storage";
 import { shouldDropAsDuplicate } from "@/features/events/tracker/aggregation";
@@ -59,6 +60,17 @@ const SESSION_STORAGE_KEY = "hyperpersona.tracker.session_id.v1";
 
 // --- module state -----------------------------------------------------------
 let consentSnapshot: string[] = [];
+/**
+ * Becomes `true` the first time `setConsentSnapshot` is called (the bridge
+ * has heard from the consent query). Until then, the snapshot value is `[]`
+ * by default — and dropping events on that pre-warm-up state would lose
+ * every signal fired during the boot race between tracker init and the
+ * consent query resolving. While `false`, `trackEvent` enqueues with the
+ * caller's declared scope and lets the server's per-event intersection
+ * enforce. Once `true`, the FE-side optimization (drop events with no
+ * scope overlap) kicks back in.
+ */
+let consentSnapshotReady = false;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushInFlight: Promise<void> | null = null;
 let consecutiveFailures = 0;
@@ -164,13 +176,19 @@ function scheduleFlush(delayMs = FLUSH_DEBOUNCE_MS): void {
 
 /**
  * Update the consent snapshot. Called from a React bridge that observes the
- * consent query. Used by `trackEvent` to gate enqueue: an event is dropped
- * locally only if the intersection of its declared `consent_scope` and this
- * snapshot is empty. Events that survive the intersection ship the
- * intersected scope list on the wire so the server stores the right thing.
+ * consent query. Used by `trackEvent` to gate enqueue: once the snapshot
+ * is "ready" (this function has been called at least once with whatever
+ * scopes the user actually has), events with no scope overlap are dropped
+ * locally to save IDB rows on doomed payloads. Before the first call, the
+ * tracker enqueues optimistically — see the `consentSnapshotReady` doc.
+ *
+ * The first call (even with an empty scopes array, signalling "user has
+ * no consent record") flips the readiness flag. From then on the FE gate
+ * is authoritative, matching the server's view.
  */
 export function setConsentSnapshot(scopes: string[]): void {
   consentSnapshot = scopes.slice();
+  consentSnapshotReady = true;
 }
 
 /** Read the current snapshot (mainly for tests/debug). */
@@ -197,12 +215,22 @@ export function trackEvent(input: TrackInput): void {
   // Default to {"analytics"} when the caller doesn't declare a scope, since
   // every event is at minimum a recordable analytics signal.
   const requested = input.consent_scope?.length ? input.consent_scope : ["analytics"];
-  const scopes = intersectScopes(requested, consentSnapshot);
-  if (scopes.length === 0) {
-    // Snapshot grants none of the scopes this event needs. Either the user
-    // has no consent record yet, or they've revoked the relevant scope —
-    // drop instead of queuing a payload the server will reject.
-    return;
+  let scopes: string[];
+  if (consentSnapshotReady) {
+    // Snapshot is authoritative — intersect with what the user actually
+    // granted. Drop locally if there's no overlap so we don't burn IDB
+    // rows on payloads the server would reject anyway.
+    scopes = intersectScopes(requested, consentSnapshot);
+    if (scopes.length === 0) return;
+  } else {
+    // Boot race: tracker init runs before TrackerConsentBridge has heard
+    // from the consent query. Dropping here would lose every event fired
+    // in the warm-up window (typical: a few hundred ms). Enqueue with the
+    // caller's declared scope instead and let the server's per-event
+    // intersection (events.py) enforce. The bridge will flip
+    // `consentSnapshotReady=true` shortly and subsequent events take the
+    // strict path.
+    scopes = requested.slice();
   }
 
   const session = getSession();
@@ -248,6 +276,16 @@ export function trackEvent(input: TrackInput): void {
       if (pending >= FLUSH_SIZE_THRESHOLD) {
         clearFlushTimer();
         void flushPending();
+      } else if (consecutiveFailures > 0) {
+        // We're in backoff from prior failures (server was 5xx or offline).
+        // The existing pending timer may be sitting on a long backoff delay
+        // (up to 30s). A new event arriving is a strong "user is still
+        // active, try again" signal — and the failure cause may have just
+        // resolved (creds refreshed, network back). Replace the long timer
+        // with the standard debounce so recovery is fast instead of
+        // waiting out the full backoff window.
+        clearFlushTimer();
+        scheduleFlush(FLUSH_DEBOUNCE_MS);
       } else {
         scheduleFlush();
       }
@@ -379,10 +417,21 @@ export async function clearTrackerQueue(): Promise<void> {
 /**
  * Boot-time housekeeping. Called once from `init.ts` and again whenever
  * identity changes. Drops stale rows, realigns the queue to the current
- * identity, and schedules an immediate drain if anything remains.
+ * identity, resets stale backoff timestamps so a session restart is a
+ * clean slate, and schedules an immediate drain if anything remains.
+ *
+ * Why reset retry metadata: if the prior session ended mid-backoff (5xx
+ * storm, dead network, expired creds), pending IDB rows still carry their
+ * `next_attempt_at` set seconds-to-minutes in the future. Without this
+ * reset, `loadDueEvents` would skip those rows on the next refresh and
+ * the user-visible symptom is "events look queued but nothing fires".
  */
 export async function trackerBootDrain(): Promise<void> {
   await purgeStale(Date.now() - MAX_EVENT_AGE_MS).catch(() => 0);
+  // Reset backoff metadata up front — a fresh page load is a fresh attempt
+  // window, regardless of how the prior session ended. In-process
+  // `consecutiveFailures` is already 0 here (module init).
+  await resetRetryMetadata().catch(() => 0);
   const session = getSession();
   if (session) {
     // Purge events queued under any *other* identity. Events queued

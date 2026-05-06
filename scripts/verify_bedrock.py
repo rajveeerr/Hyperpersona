@@ -11,15 +11,11 @@ which runs this script in both containers.
 import os
 import sys
 
-from shared.bedrock import (
-    BedrockClient,
-    MockBedrockClient,
-    make_bedrock_client,
-)
+from shared.bedrock import BedrockClient, make_bedrock_client
 
 
 def main() -> int:
-    mode = os.getenv("BEDROCK_MODE", "mock")
+    mode = os.getenv("BEDROCK_MODE", "real")
     region = os.getenv("BEDROCK_REGION", "us-east-1")
     text_model = os.getenv("BEDROCK_TEXT_MODEL", "")
     embed_model = os.getenv("BEDROCK_EMBED_MODEL", "")
@@ -33,16 +29,19 @@ def main() -> int:
     print(f"AKID prefix      : {akid[:4] or '(empty)'}")
     print(f"SESSION_TOKEN    : {'present' if has_session else 'MISSING'}")
 
-    client = make_bedrock_client(
-        mode=mode, region=region,
-        text_model=text_model, embed_model=embed_model,
-    )
+    try:
+        client = make_bedrock_client(
+            mode=mode, region=region,
+            text_model=text_model, embed_model=embed_model,
+        )
+    except ValueError as e:
+        print(f"FAIL — {e}")
+        return 1
     impl = type(client).__name__
     print(f"factory returned : {impl}")
 
-    expected = BedrockClient if mode == "real" else MockBedrockClient
-    if not isinstance(client, expected):
-        print(f"FAIL — expected {expected.__name__} for mode={mode}, got {impl}")
+    if not isinstance(client, BedrockClient):
+        print(f"FAIL — expected BedrockClient, got {impl}")
         return 1
 
     try:
@@ -55,10 +54,7 @@ def main() -> int:
     print(f"embed dim        : {len(vec)}  sample: {[round(x, 4) for x in vec[:3]]}")
     print(f"generate         : {gen[:80]}")
 
-    if mode == "real" and gen.startswith("[mock]"):
-        print("FAIL — real mode but generate looks like a mock response")
-        return 1
-    if mode == "real" and not has_session and akid.startswith("ASIA"):
+    if not has_session and akid.startswith("ASIA"):
         print("FAIL — temp creds (ASIA) without AWS_SESSION_TOKEN")
         return 1
 

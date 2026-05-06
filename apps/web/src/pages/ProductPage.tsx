@@ -16,6 +16,7 @@ import { usePdpDwell } from "@/features/events/usePdpDwell";
 import { ProductSuggestionsSection } from "@/features/recommendations/components/ProductSuggestionsSection";
 import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
 import { recommendProductsToProducts } from "@/features/recommendations/mappers";
+import { resolveRailCopy } from "@/features/recommendations/railCopy";
 import { pushToast } from "@/features/toast/store";
 import {
   useAddToWishlist,
@@ -149,15 +150,26 @@ export function ProductPage() {
         (!recommendationsQuery.data || recommendationsQuery.data.products.length === 0) ? (
           <p className={`text-sm ${tw.muted}`}>No suggestion rails returned for this product yet.</p>
         ) : recommendationsQuery.data ? (
-          <RecommendationRail
-            products={recommendProductsToProducts(recommendationsQuery.data.products)}
-            sourceContext={productPageContext}
-            title="Pieces that complete the story"
-            subtitle="Suggested next"
-            reason={recommendationsQuery.data.personalization_reason ?? undefined}
-            personalized={Boolean(recommendationsQuery.data.personalization_reason)}
-            presentation="pdp"
-          />
+          (() => {
+            const rail = resolveRailCopy(recommendationsQuery.data, {
+              eyebrow: "Suggested next",
+              headline: "Pieces that complete the story",
+              subtitle: "Hand-picked complements to round out the look.",
+              modeLabel: "Catalog pairings",
+            });
+            return (
+              <RecommendationRail
+                products={recommendProductsToProducts(recommendationsQuery.data.products)}
+                sourceContext={productPageContext}
+                title={rail.headline}
+                subtitle={rail.eyebrow}
+                reason={rail.subtitle}
+                personalized={Boolean(recommendationsQuery.data.personalization_reason)}
+                modeLabel={rail.mode_label}
+                presentation="pdp"
+              />
+            );
+          })()
         ) : null}
       </ProductSuggestionsSection>
     </div>

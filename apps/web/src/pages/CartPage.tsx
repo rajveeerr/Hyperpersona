@@ -14,6 +14,7 @@ import { useSpecTrack } from "@/features/events/specEvents";
 import { ComplementRail } from "@/features/recommendations/components/ComplementRail";
 import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
 import { recommendProductsToProducts } from "@/features/recommendations/mappers";
+import { resolveRailCopy } from "@/features/recommendations/railCopy";
 import { apiClient } from "@/shared/api/client";
 import type { CartLine as CartLineType } from "@/shared/api/contracts";
 import { formatCurrency } from "@/shared/lib/format";
@@ -261,17 +262,32 @@ export function CartPage() {
         </div>
       )}
 
-      {ready && recommendationsQuery.data && recommendationsQuery.data.products.length > 0 ? (
-        <RecommendationRail
-          products={recommendProductsToProducts(recommendationsQuery.data.products)}
-          sourceContext={cartContext}
-          title={hasItems ? "Pairs well with what's in your bag" : "Worth a look while your bag is empty"}
-          subtitle={hasItems ? "Recommended" : "Curated"}
-          reason={recommendationsQuery.data.personalization_reason ?? undefined}
-          personalized={Boolean(recommendationsQuery.data.personalization_reason)}
-          presentation="default"
-        />
-      ) : null}
+      {ready && recommendationsQuery.data && recommendationsQuery.data.products.length > 0
+        ? (() => {
+            const rail = resolveRailCopy(recommendationsQuery.data, {
+              eyebrow: hasItems ? "Recommended" : "Curated",
+              headline: hasItems
+                ? "Pairs well with what's in your bag"
+                : "Worth a look while your bag is empty",
+              subtitle: hasItems
+                ? "Frequently bought together with items you've added."
+                : "Quick favorites to start a new bag.",
+              modeLabel: hasItems ? "Popular pairings" : "Trending now",
+            });
+            return (
+              <RecommendationRail
+                products={recommendProductsToProducts(recommendationsQuery.data.products)}
+                sourceContext={cartContext}
+                title={rail.headline}
+                subtitle={rail.eyebrow}
+                reason={rail.subtitle}
+                personalized={Boolean(recommendationsQuery.data.personalization_reason)}
+                modeLabel={rail.mode_label}
+                presentation="default"
+              />
+            );
+          })()
+        : null}
 
       {hasItems && complementQuery.data && complementQuery.data.recommendations.length > 0 ? (
         <ComplementRail recommendations={complementQuery.data.recommendations} />

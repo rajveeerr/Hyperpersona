@@ -74,8 +74,9 @@ async def recommend_complement(
         return result
 
     job = Job(
-        job_type="generate_complement_recommendation",
+        job_type="generate_related_recommendation",
         payload={
+            "mode": "complement",
             "customer_id": customer_id,
             "cart_items": item_ids,
             "limit": limit,

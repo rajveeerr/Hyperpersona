@@ -13,6 +13,7 @@ import { Context } from "@/features/events/contexts";
 import { useSpecTrack } from "@/features/events/specEvents";
 import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
 import { recommendProductsToProducts } from "@/features/recommendations/mappers";
+import { resolveRailCopy } from "@/features/recommendations/railCopy";
 import { useCatalogFacets } from "@/features/catalog/hooks/useCatalogFacets";
 import { useFacetStripBusyForScopeChange } from "../features/catalog/hooks/useFacetStripBusyForScopeChange";
 import { useProductSearch } from "@/features/catalog/hooks/useProductSearch";
@@ -252,17 +253,28 @@ export function CatalogPage() {
         </nav>
       ) : null}
 
-      {recommendationsQuery.data && categoryContext && recommendationsQuery.data.products.length > 0 ? (
-        <RecommendationRail
-          products={recommendProductsToProducts(recommendationsQuery.data.products)}
-          sourceContext={categoryContext}
-          title="Worth a closer look in this category"
-          subtitle="Recommended"
-          reason={recommendationsQuery.data.personalization_reason ?? undefined}
-          personalized={Boolean(recommendationsQuery.data.personalization_reason)}
-          presentation="default"
-        />
-      ) : null}
+      {recommendationsQuery.data && categoryContext && recommendationsQuery.data.products.length > 0
+        ? (() => {
+            const rail = resolveRailCopy(recommendationsQuery.data, {
+              eyebrow: "Recommended",
+              headline: "Worth a closer look in this category",
+              subtitle: "Top-performing items others in this category love.",
+              modeLabel: "Top in this category",
+            });
+            return (
+              <RecommendationRail
+                products={recommendProductsToProducts(recommendationsQuery.data.products)}
+                sourceContext={categoryContext}
+                title={rail.headline}
+                subtitle={rail.eyebrow}
+                reason={rail.subtitle}
+                personalized={Boolean(recommendationsQuery.data.personalization_reason)}
+                modeLabel={rail.mode_label}
+                presentation="default"
+              />
+            );
+          })()
+        : null}
     </div>
   );
 }

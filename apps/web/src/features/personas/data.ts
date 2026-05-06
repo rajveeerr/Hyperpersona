@@ -16,7 +16,7 @@ export const demoPersonas: DemoPersona[] = [
     initials: "MI",
     label: "Budget shopper",
     summary: "Value-conscious and promotion-sensitive, but still active across apparel and accessories.",
-    recentSignals: ["sorted by price low to high", "saved commuter pants", "searched for under $100"],
+    recentSignals: ["sorted by price low to high", "saved commuter pants", "searched for under ₹8,300"],
     currentIntent: "Looking for affordable everyday essentials with versatile use.",
   },
   {

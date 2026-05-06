@@ -9,6 +9,7 @@ import { ShopperContextEditorialSection } from "@/features/home/components/Shopp
 import { Context } from "@/features/events/contexts";
 import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
 import { recommendProductsToProducts } from "@/features/recommendations/mappers";
+import { resolveRailCopy } from "@/features/recommendations/railCopy";
 import { apiClient } from "@/shared/api/client";
 import { tw } from "@/shared/ui/tw";
 
@@ -41,15 +42,26 @@ export function HomePage() {
         {recommendationsQuery.isLoading ? (
           <p className={`text-sm ${tw.muted}`}>Loading personalized picks…</p>
         ) : recommendationsQuery.data && recommendationsQuery.data.products.length > 0 ? (
-          <RecommendationRail
-            products={recommendProductsToProducts(recommendationsQuery.data.products)}
-            sourceContext={homepageContext}
-            title="Picks shaped by your signals"
-            subtitle="Recommended for you"
-            reason={recommendationsQuery.data.personalization_reason ?? undefined}
-            personalized={personalized}
-            presentation="editorial"
-          />
+          (() => {
+            const rail = resolveRailCopy(recommendationsQuery.data, {
+              eyebrow: "Recommended for you",
+              headline: "Picks shaped by your signals",
+              subtitle: "A starting point — your tiles will personalize as you browse.",
+              modeLabel: "Editor's picks",
+            });
+            return (
+              <RecommendationRail
+                products={recommendProductsToProducts(recommendationsQuery.data.products)}
+                sourceContext={homepageContext}
+                title={rail.headline}
+                subtitle={rail.eyebrow}
+                reason={rail.subtitle}
+                personalized={personalized}
+                modeLabel={rail.mode_label}
+                presentation="editorial"
+              />
+            );
+          })()
         ) : null}
       </HomePersonalizedSection>
 

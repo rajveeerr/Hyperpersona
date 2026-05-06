@@ -37,7 +37,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       JWT_EXPIRY_HOURS: ${JWT_EXPIRY_HOURS:-24}
-      BEDROCK_MODE: ${BEDROCK_MODE:-mock}
+      BEDROCK_MODE: ${BEDROCK_MODE:-real}
       BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
       BEDROCK_TEXT_MODEL: ${BEDROCK_TEXT_MODEL:-anthropic.claude-sonnet-4-5-20250929-v1:0}
       BEDROCK_EMBED_MODEL: ${BEDROCK_EMBED_MODEL:-amazon.titan-embed-text-v2:0}
@@ -84,7 +84,7 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
-      BEDROCK_MODE: ${BEDROCK_MODE:-mock}
+      BEDROCK_MODE: ${BEDROCK_MODE:-real}
       BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
       BEDROCK_TEXT_MODEL: ${BEDROCK_TEXT_MODEL:-anthropic.claude-sonnet-4-5-20250929-v1:0}
       BEDROCK_EMBED_MODEL: ${BEDROCK_EMBED_MODEL:-amazon.titan-embed-text-v2:0}

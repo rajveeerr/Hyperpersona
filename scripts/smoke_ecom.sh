@@ -133,8 +133,8 @@ run "GET /me/profile" GET /me/profile "" \
 "import sys,json; d=json.load(sys.stdin); assert d['customerId']=='demo-customer-1'; assert len(d['addresses'])==2; print(f'name={d[\"name\"]} addresses={[a[\"id\"] for a in d[\"addresses\"]]}')"
 
 run "PATCH /me/preferences" PATCH /me/preferences \
-  '{"explicitPreferences":[{"key":"budget","label":"Budget band","value":"$100-$300"}]}' \
-"import sys,json; d=json.load(sys.stdin); prefs={p['key']:p['value'] for p in d['explicitPreferences']}; assert prefs.get('budget')=='\$100-\$300'; print(f'updated; budget={prefs[\"budget\"]} lastUpdated={d[\"lastUpdated\"][:19]}')"
+  '{"explicitPreferences":[{"key":"budget","label":"Budget band","value":"₹8,300-₹24,900"}]}' \
+"import sys,json; d=json.load(sys.stdin); prefs={p['key']:p['value'] for p in d['explicitPreferences']}; assert prefs.get('budget')=='₹8,300-₹24,900'; print(f'updated; budget={prefs[\"budget\"]} lastUpdated={d[\"lastUpdated\"][:19]}')"
 
 run "GET /me/explanations" GET /me/explanations "" \
 "import sys,json; d=json.load(sys.stdin); assert len(d['search'])>0 and len(d['recommendations'])>0; print(f'search={len(d[\"search\"])} recs={len(d[\"recommendations\"])} signals={len(d[\"profileSignals\"])}')"

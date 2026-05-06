@@ -15,7 +15,7 @@ const tiles = [
   {
     id: "tile-jacket",
     label: "Altitude shell",
-    price: 220,
+    price: 18260,
     slug: "altitude-shell-jacket",
     src: `${BASE}/grid-jacket.webp`,
     alt: "Front-facing jacket, transparent cutout",
@@ -23,7 +23,7 @@ const tiles = [
   {
     id: "tile-hoodie",
     label: "Recovery knit hoodie",
-    price: 88,
+    price: 7304,
     slug: "recovery-knit-hoodie",
     src: `${BASE}/grid-hoodie.webp`,
     alt: "Front-facing hoodie, transparent cutout",
@@ -31,7 +31,7 @@ const tiles = [
   {
     id: "tile-pants",
     label: "Metro knit pant",
-    price: 95,
+    price: 7885,
     slug: "metro-knit-pant",
     src: `${BASE}/grid-pants.webp`,
     alt: "Flat lay denim jeans, transparent cutout",
@@ -39,7 +39,7 @@ const tiles = [
   {
     id: "tile-beanie",
     label: "Trail watch beanie",
-    price: 24,
+    price: 1992,
     slug: "trail-watch-beanie",
     src: `${BASE}/grid-beanie.webp`,
     alt: "Front-facing beanie, transparent cutout",

@@ -33,5 +33,285 @@
     "name": "Tech & Desk",
     "description": "Phones, audio, and desk hardware with clear specs.",
     "hero": "Tools that stay out of the way until you need them."
+  },
+  {
+    "id": "cat-mens-shirts",
+    "slug": "mens-shirts",
+    "name": "Men's Shirts",
+    "description": "Formal, casual, linen, and printed shirts for every occasion.",
+    "hero": "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-mens-tshirts",
+    "slug": "mens-tshirts",
+    "name": "Men's T-Shirts",
+    "description": "Crewneck, polo, and graphic tees for everyday rotation.",
+    "hero": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-mens-jeans",
+    "slug": "mens-jeans",
+    "name": "Men's Jeans",
+    "description": "Slim, straight, and relaxed denim cut for daily wear.",
+    "hero": "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-mens-trousers",
+    "slug": "mens-trousers",
+    "name": "Men's Trousers",
+    "description": "Formal trousers, chinos, and joggers.",
+    "hero": "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-mens-jackets",
+    "slug": "mens-jackets",
+    "name": "Men's Jackets & Coats",
+    "description": "Bombers, blazers, parkas, and lightweight outerwear.",
+    "hero": "https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-mens-ethnic",
+    "slug": "mens-ethnic",
+    "name": "Men's Ethnic Wear",
+    "description": "Kurtas, kurta-pyjama sets, sherwanis, and Nehru jackets.",
+    "hero": "https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-mens-shoes-formal",
+    "slug": "mens-shoes-formal",
+    "name": "Men's Formal Shoes",
+    "description": "Oxfords, Derbys, monks, and loafers for office and formal wear.",
+    "hero": "https://images.unsplash.com/photo-1614252369475-531eba835eb1?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-mens-shoes-casual",
+    "slug": "mens-shoes-casual",
+    "name": "Men's Casual Shoes",
+    "description": "Sneakers, slip-ons, espadrilles, and boat shoes.",
+    "hero": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-mens-shoes-sports",
+    "slug": "mens-shoes-sports",
+    "name": "Men's Sports Shoes",
+    "description": "Running, training, court, and trail performance shoes.",
+    "hero": "https://images.unsplash.com/photo-1539185441755-769473a23570?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-mens-accessories",
+    "slug": "mens-accessories",
+    "name": "Men's Accessories",
+    "description": "Belts, wallets, ties, and pocket squares.",
+    "hero": "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-womens-saree",
+    "slug": "womens-saree",
+    "name": "Sarees",
+    "description": "Silk, cotton, georgette, and designer sarees for every occasion.",
+    "hero": "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-womens-kurti",
+    "slug": "womens-kurti",
+    "name": "Kurtis & Tunics",
+    "description": "Anarkali, A-line, straight-cut, and printed kurtis.",
+    "hero": "https://images.unsplash.com/photo-1621072156002-e2fccdc0b176?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-womens-lehenga",
+    "slug": "womens-lehenga",
+    "name": "Lehengas",
+    "description": "Bridal, festive, and ready-to-wear lehengas.",
+    "hero": "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-womens-dresses",
+    "slug": "womens-dresses",
+    "name": "Women's Dresses",
+    "description": "Maxi, midi, bodycon, and shift dresses for casual to formal.",
+    "hero": "https://images.unsplash.com/photo-1539008835657-9e8e9680c956?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-womens-tops",
+    "slug": "womens-tops",
+    "name": "Women's Tops",
+    "description": "Blouses, tees, tunics, and crop tops.",
+    "hero": "https://images.unsplash.com/photo-1564257577-0d1b7b0c5a35?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-womens-jeans-pants",
+    "slug": "womens-jeans-pants",
+    "name": "Women's Jeans & Pants",
+    "description": "Skinny, bootcut, palazzo, and culottes.",
+    "hero": "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-womens-heels",
+    "slug": "womens-heels",
+    "name": "Women's Heels",
+    "description": "Stilettos, block heels, kitten heels, and wedges.",
+    "hero": "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-womens-flats",
+    "slug": "womens-flats",
+    "name": "Women's Flats",
+    "description": "Ballerinas, mules, slip-ons, and loafers.",
+    "hero": "https://images.unsplash.com/photo-1581101767113-1677fc2b0c8e?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-womens-sandals",
+    "slug": "womens-sandals",
+    "name": "Women's Sandals",
+    "description": "Flat sandals, slides, and ethnic juttis.",
+    "hero": "https://images.unsplash.com/photo-1605408499391-6368c628ef42?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-womens-handbags",
+    "slug": "womens-handbags",
+    "name": "Women's Handbags",
+    "description": "Totes, slings, clutches, and shoulder bags.",
+    "hero": "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-kids-clothing",
+    "slug": "kids-clothing",
+    "name": "Kids' Clothing",
+    "description": "Tees, dresses, sets, and ethnic wear for boys and girls.",
+    "hero": "https://images.unsplash.com/photo-1622290291468-a28f7a7dc6a8?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-kids-footwear",
+    "slug": "kids-footwear",
+    "name": "Kids' Footwear",
+    "description": "School shoes, sneakers, sandals, and party shoes.",
+    "hero": "https://images.unsplash.com/photo-1505740106531-4243f3831c78?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-jewellery-earrings",
+    "slug": "jewellery-earrings",
+    "name": "Earrings",
+    "description": "Studs, jhumkas, hoops, and chandbalis in gold-plated and silver.",
+    "hero": "https://images.unsplash.com/photo-1535632787350-4e68ef0ac584?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-jewellery-necklaces",
+    "slug": "jewellery-necklaces",
+    "name": "Necklaces",
+    "description": "Pendants, chokers, ranihaars, and statement necklaces.",
+    "hero": "https://images.unsplash.com/photo-1599643477877-530eb83abc8e?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-jewellery-rings",
+    "slug": "jewellery-rings",
+    "name": "Rings",
+    "description": "Solitaires, cocktail rings, bands, and engagement rings.",
+    "hero": "https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-jewellery-bangles",
+    "slug": "jewellery-bangles",
+    "name": "Bangles & Bracelets",
+    "description": "Kada, traditional bangles, charm bracelets, and cuffs.",
+    "hero": "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-beauty-skincare",
+    "slug": "beauty-skincare",
+    "name": "Skincare",
+    "description": "Moisturisers, serums, sunscreens, and cleansers.",
+    "hero": "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-beauty-makeup",
+    "slug": "beauty-makeup",
+    "name": "Makeup",
+    "description": "Lipsticks, foundations, kajal, and palettes.",
+    "hero": "https://images.unsplash.com/photo-1586495777744-4413f21062fa?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-beauty-haircare",
+    "slug": "beauty-haircare",
+    "name": "Haircare",
+    "description": "Shampoos, conditioners, oils, and treatments.",
+    "hero": "https://images.unsplash.com/photo-1605497788044-5a32c7078486?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-beauty-fragrance",
+    "slug": "beauty-fragrance",
+    "name": "Fragrances",
+    "description": "Perfumes, deodorants, and body mists.",
+    "hero": "https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-watches",
+    "slug": "watches",
+    "name": "Watches",
+    "description": "Analog, digital, and chronograph watches.",
+    "hero": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-electronics-mobile",
+    "slug": "electronics-mobile",
+    "name": "Mobile Phones",
+    "description": "Smartphones across budget to premium tiers.",
+    "hero": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-electronics-laptop",
+    "slug": "electronics-laptop",
+    "name": "Laptops",
+    "description": "Ultrabooks, gaming laptops, and 2-in-1s.",
+    "hero": "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-electronics-audio",
+    "slug": "electronics-audio",
+    "name": "Audio",
+    "description": "Headphones, earbuds, speakers, and soundbars.",
+    "hero": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-electronics-smartwatch",
+    "slug": "electronics-smartwatch",
+    "name": "Smartwatches",
+    "description": "Fitness trackers, smartwatches, and hybrid watches.",
+    "hero": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-electronics-tv",
+    "slug": "electronics-tv",
+    "name": "TVs & Displays",
+    "description": "Smart TVs, OLED, and 4K displays.",
+    "hero": "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-electronics-camera",
+    "slug": "electronics-camera",
+    "name": "Cameras",
+    "description": "Mirrorless, DSLR, and compact cameras.",
+    "hero": "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-electronics-accessories",
+    "slug": "electronics-accessories",
+    "name": "Tech Accessories",
+    "description": "Cables, chargers, mounts, and power banks.",
+    "hero": "https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-home-kitchen",
+    "slug": "home-kitchen",
+    "name": "Kitchen Appliances",
+    "description": "Mixers, pressure cookers, air fryers, and small appliances.",
+    "hero": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=900&q=80"
+  },
+  {
+    "id": "cat-home-decor",
+    "slug": "home-decor",
+    "name": "Home Decor",
+    "description": "Cushions, planters, wall art, and lighting.",
+    "hero": "https://images.unsplash.com/photo-1567538096631-e0c55bd6374c?auto=format&fit=crop&w=900&q=80"
   }
 ]

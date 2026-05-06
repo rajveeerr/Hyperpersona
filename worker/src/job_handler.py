@@ -21,18 +21,21 @@ import time
 from shared.schemas import utc_now_iso
 
 from .handlers import (
-    generate_complement_recommendation,
     generate_recommendation,
+    generate_related_recommendation,
     process_event,
     summarize_session,
 )
 
 log = logging.getLogger(__name__)
 
+# generate_related_recommendation serves BOTH /recommend/complement and
+# /recommend/similar-price — the handler branches on the `mode` field in the
+# job payload set by the route layer.
 HANDLERS = {
     "process_event": process_event.handle,
     "generate_recommendation": generate_recommendation.handle,
-    "generate_complement_recommendation": generate_complement_recommendation.handle,
+    "generate_related_recommendation": generate_related_recommendation.handle,
     "summarize_session": summarize_session.handle,
 }
 

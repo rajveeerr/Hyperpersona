@@ -39,9 +39,9 @@ OS_PORT = int(os.getenv("OPENSEARCH_PORT", "9200"))
 
 CUSTOMER = "demo_conflict_user"
 
-# Use the same hash-based mock embedder so similarities behave the same
-# way as in the rest of the system. Keep this in sync with
-# shared/bedrock.py:MockBedrockClient.embed.
+# Local hash-based embedder — used by this demo script only so the conflict
+# vis is deterministic without burning a Bedrock invoke. The production
+# stack uses real Titan via shared/bedrock.py:BedrockClient.embed.
 def mock_embed(text: str, dim: int = 1024) -> list[float]:
     seed = hashlib.sha256(text.encode("utf-8")).digest()
     out: list[float] = []

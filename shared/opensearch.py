@@ -96,16 +96,37 @@ class OpenSearchClient:
         query: list[float],
         k: int = 8,
         filter_customer: str | None = None,
+        term_filters: dict[str, str] | None = None,
+        range_filter: dict[str, dict[str, float]] | None = None,
     ) -> list[dict]:
         knn_query = {"vector": {"vector": query, "k": k}}
 
+        # Compose the filter list — KNN runs as `must`, all filters AND together.
+        # `term_filters` covers exact-match keyword fields (e.g. category lock for
+        # the substitute recommender); `range_filter` covers numeric ranges
+        # (e.g. ±tolerance price band). Existing callers pass neither and get
+        # the same body shape as before.
+        filters: list[dict] = []
         if filter_customer:
+            filters.append({"term": {"customer_id": filter_customer}})
+        if term_filters:
+            for field, value in term_filters.items():
+                if value is None or value == "":
+                    continue
+                filters.append({"term": {field: value}})
+        if range_filter:
+            for field, bounds in range_filter.items():
+                if not bounds:
+                    continue
+                filters.append({"range": {field: bounds}})
+
+        if filters:
             body: dict = {
                 "size": k,
                 "query": {
                     "bool": {
                         "must": [{"knn": knn_query}],
-                        "filter": [{"term": {"customer_id": filter_customer}}],
+                        "filter": filters,
                     }
                 },
             }
