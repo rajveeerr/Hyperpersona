@@ -201,9 +201,11 @@ class DynamoClient:
         we retry those once before giving up so partial answers don't lead
         to silent re-enqueue of already-completed jobs.
 
-        Uses the low-level client (the resource API doesn't expose a high-
-        level batch_get), so keys + responses go through TypeSerializer /
-        TypeDeserializer to keep callers dealing in plain Python dicts.
+        We use resource.meta.client (which auto-marshals python dicts to
+        DDB's typed wire format) and pass plain {PK, SK} dicts. Earlier
+        wrapping with TypeSerializer caused a double-serialize and
+        ValidationException — boto3 quirk: the resource's wrapped client
+        expects raw values, not pre-serialized ones.
         """
         if not job_ids:
             return []
@@ -213,21 +215,19 @@ class DynamoClient:
         seen: set[str] = set()
         unique_ids = [jid for jid in job_ids if not (jid in seen or seen.add(jid))]
         client = self.resource.meta.client
-        ser = TypeSerializer()
-        deser = TypeDeserializer()
         table_name = TABLE_JOBS
         for start in range(0, len(unique_ids), 100):
             chunk = unique_ids[start : start + 100]
             keys = [
-                {"PK": ser.serialize(f"JOB#{jid}"), "SK": ser.serialize("META")}
+                {"PK": f"JOB#{jid}", "SK": "META"}
                 for jid in chunk
             ]
             request = {table_name: {"Keys": keys}}
             for _ in range(2):
                 resp = client.batch_get_item(RequestItems=request)
                 items = resp.get("Responses", {}).get(table_name, [])
-                for item in items:
-                    out.append({k: deser.deserialize(v) for k, v in item.items()})
+                # resource.meta.client returns already-deserialized dicts.
+                out.extend(items)
                 unprocessed = resp.get("UnprocessedKeys", {}) or {}
                 if not unprocessed.get(table_name, {}).get("Keys"):
                     break
