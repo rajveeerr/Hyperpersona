@@ -3,12 +3,13 @@
 Input job payload: {customer_id, cart_items: [...], limit?}
 Output: pushes JSON to result:{job_id} for the server to BRPOP.
 
-Personalization (Stage 3):
+Personalization:
   Embed a compact summary of the cart, retrieve top customer-facts via
-  OpenSearch, ACE-rank them, and pass the top texts into the complement
-  tool so Claude can prefer items matching past behaviour. In mock mode
-  the LLM falls back to the heuristic (no fact reasoning), but the wiring
-  is in place — flips on automatically with real Bedrock.
+  OpenSearch, ACE-rank them. Pass the cart embedding + the full ranked-fact
+  dicts (text + score + polarity) into the complement tool, which builds a
+  user-preference vector and runs personalized KNN against the
+  product-catalog collection — so customer history actually shapes the
+  candidate pool, not just the prompt text.
 """
 
 import json
@@ -23,40 +24,38 @@ from ..agents.tools import complement_tool
 
 log = logging.getLogger(__name__)
 
-FACTS_K = 15            # how many candidate facts to pull
-FACTS_TOP = 5           # how many to actually pass to the prompt
+FACTS_K = 15            # how many candidate facts to pull from OpenSearch
+FACTS_TOP = 5           # how many ACE-ranked facts to pass downstream
 
 
 def _cart_context(products: list[dict]) -> str:
-    """Compact text for embedding — drives customer-facts retrieval."""
-    parts = [
-        f"{p.get('name', '')} ({p.get('subcategory', '')})"
-        for p in products
-    ]
+    """Compact text for embedding — drives BOTH customer-facts retrieval and
+    the cart side of the candidate KNN, so we only embed once."""
+    parts = []
+    for p in products:
+        name = p.get("name", "")
+        descriptor = p.get("subcategory") or p.get("category") or p.get("vertical") or ""
+        parts.append(f"{name} ({descriptor})" if descriptor else name)
     return "shopping cart: " + "; ".join(parts)
 
 
-def _retrieve_customer_facts(
+def _retrieve_ranked_facts(
     customer_id: str,
-    cart_products: list[dict],
-    bedrock,
+    cart_vec: list[float],
     vectors,
-) -> list[str]:
-    """Returns up to FACTS_TOP fact texts ranked by ACE (recency × similarity).
-    Empty list on any failure or for new customers with no facts."""
-    if not cart_products:
-        return []
+) -> list[dict]:
+    """Return up to FACTS_TOP ACE-ranked fact dicts (text + polarity +
+    combined_score). Empty for cold-start customers or on retrieval failure."""
     try:
-        query_vec = bedrock.embed(_cart_context(cart_products))
         raw_facts = vectors.search(
-            COLLECTION_FACTS, query_vec, k=FACTS_K, filter_customer=customer_id,
+            COLLECTION_FACTS, cart_vec, k=FACTS_K, filter_customer=customer_id,
         )
     except Exception as e:
         log.warning("complement fact retrieval failed: %s", e)
         return []
 
     ranked, _conflicts = rank_facts(raw_facts)
-    return [f["text"] for f in ranked[:FACTS_TOP] if f.get("text")]
+    return [f for f in ranked[:FACTS_TOP] if f.get("text")]
 
 
 def handle(job: dict, ctx: dict) -> None:
@@ -78,19 +77,27 @@ def handle(job: dict, ctx: dict) -> None:
         {}, 0.0, "ok",
     )
 
-    # Resolve cart for fact-context embedding (and pass through the count to
-    # the tool's own batch_get implicitly — tool also fetches; cost is <1ms).
-    cart_products = dynamo.batch_get_recommender_products(cart_items) if cart_items else []
+    # Hydrate cart from the lean catalog (unchanged contract — cart_items
+    # IDs come in this namespace today).
+    cart_products = (
+        dynamo.batch_get_recommender_products(cart_items) if cart_items else []
+    )
+
+    # Embed cart text once. Reused for facts KNN and for the personalized
+    # product-catalog KNN downstream.
+    cart_text = _cart_context(cart_products) if cart_products else "empty cart"
+    cart_vec = bedrock.embed(cart_text)
 
     t_facts = time.time()
-    facts_texts = _retrieve_customer_facts(
-        customer_id, cart_products, bedrock, vectors,
-    )
+    ranked_facts = _retrieve_ranked_facts(customer_id, cart_vec, vectors)
     facts_ms = (time.time() - t_facts) * 1000
     tracer.log(
         job_id, "complement", "facts_retrieved",
         {"customer_id": customer_id, "k": FACTS_K, "top": FACTS_TOP},
-        {"facts_count": len(facts_texts), "facts_preview": facts_texts[:2]},
+        {
+            "facts_count": len(ranked_facts),
+            "facts_preview": [f.get("text", "")[:80] for f in ranked_facts[:2]],
+        },
         facts_ms, "ok",
     )
 
@@ -98,16 +105,18 @@ def handle(job: dict, ctx: dict) -> None:
     result = complement_tool.generate_complement_recommendation(
         customer_id=customer_id,
         cart_item_ids=cart_items,
+        cart_vec=cart_vec,
+        ranked_facts=ranked_facts,
         bedrock=bedrock,
         dynamo=dynamo,
-        customer_facts=facts_texts,
+        vectors=vectors,
         limit=limit,
     )
     duration_ms = (time.time() - t0) * 1000
 
     tracer.log(
         job_id, "complement", "generate_complement",
-        {"cart_size": len(cart_items), "limit": limit, "facts_used": len(facts_texts)},
+        {"cart_size": len(cart_items), "limit": limit, "facts_used": len(ranked_facts)},
         {
             "recommendations": len(result["recommendations"]),
             "candidates_considered": result["candidates_considered"],
@@ -116,7 +125,7 @@ def handle(job: dict, ctx: dict) -> None:
         duration_ms, "ok",
     )
 
-    result["facts_used"] = len(facts_texts)
+    result["facts_used"] = len(ranked_facts)
     push_result(redis_client, job_id, json.dumps({**result, "job_id": job_id}))
     tracer.log(
         job_id, "supervisor", "end_complement",
@@ -125,5 +134,5 @@ def handle(job: dict, ctx: dict) -> None:
     )
     log.info(
         "complement result pushed for job %s (facts=%d, recs=%d, llm=%s)",
-        job_id, len(facts_texts), len(result["recommendations"]), result["used_llm"],
+        job_id, len(ranked_facts), len(result["recommendations"]), result["used_llm"],
     )

@@ -256,6 +256,22 @@ class DynamoClient:
         )
         return resp.get("Item")
 
+    def batch_get_products(self, slugs: list[str]) -> list[dict]:
+        """Fetch storefront products for many slugs in one round-trip.
+        DDB BatchGetItem caps at 100 keys per request — fine for the
+        complement candidate-pool size (~30-80)."""
+        if not slugs:
+            return []
+        keys = [{"PK": f"PRODUCT#{slug}", "SK": "META"} for slug in slugs]
+        resp = self.resource.batch_get_item(
+            RequestItems={TABLE_PRODUCTS: {"Keys": keys}}
+        )
+        items = resp.get("Responses", {}).get(TABLE_PRODUCTS, [])
+        for item in items:
+            item.pop("PK", None)
+            item.pop("SK", None)
+        return items
+
     def scan_products(self) -> list[dict]:
         """Return every product. Catalog is small (~hundreds of SKUs) so
         full-scan is fine; the snapshot service caches the result."""
