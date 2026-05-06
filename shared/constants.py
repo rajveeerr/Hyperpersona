@@ -49,3 +49,10 @@ COMPLEMENT_TOP_CANDIDATES = 30
 # second. Bumping above ~0.5 risks recommending things the customer likes that
 # don't actually pair with the cart contents.
 COMPLEMENT_PREF_WEIGHT = 0.3
+
+# General recommender — products picker tuning. Over-fetch K from OpenSearch
+# product-catalog (KNN over blended context+preference vector), then drop
+# out-of-stock and cap at PRODUCTS_LIMIT for the frontend rail. Blend weight
+# reuses COMPLEMENT_PREF_WEIGHT — same intent, same range of acceptable values.
+RECOMMEND_KNN_K = 60
+RECOMMEND_PRODUCTS_LIMIT = 6
