@@ -1,4 +1,4 @@
-# HyperPersona — Phase-by-Phase Build Plan
+# HyperPersona — Phase-by-Phase Build Plan - personalized recommendations 
 
 ## Architecture recap
 
