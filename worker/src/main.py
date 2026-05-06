@@ -29,7 +29,7 @@ def main() -> None:
         host=settings.opensearch_host,
         port=settings.opensearch_port,
     )
-    tracer = TraceLogger(settings.traces_db_path)
+    tracer = TraceLogger(settings.traces_db_dir)
     supervisor = Supervisor(dynamo=dynamo, bedrock=bedrock, vectors=vectors, tracer=tracer)
 
     ctx = {

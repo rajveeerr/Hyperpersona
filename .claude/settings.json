@@ -16,7 +16,14 @@
       "Bash(python -m py_compile /c/cognizant-hack/worker/src/agents/tools/recommender_tool.py /c/cognizant-hack/worker/src/handlers/generate_recommendation.py /c/cognizant-hack/scripts/demo_tiered.py)",
       "Bash(python -m py_compile /c/cognizant-hack/worker/src/handlers/summarize_session.py)",
       "Bash(python -m py_compile /c/cognizant-hack/worker/src/config.py /c/cognizant-hack/worker/src/handlers/process_event.py /c/cognizant-hack/scripts/demo_tiered.py /c/cognizant-hack/shared/bedrock.py /c/cognizant-hack/worker/src/agents/tools/analyzer_tool.py)",
-      "Bash(EVENT_PROCESSING_MODE=tiered docker compose up -d --force-recreate worker)"
+      "Bash(EVENT_PROCESSING_MODE=tiered docker compose up -d --force-recreate worker)",
+      "Bash(python -m py_compile /c/cognizant-hack/shared/trace_reader.py /c/cognizant-hack/worker/src/trace_logger.py /c/cognizant-hack/worker/src/config.py /c/cognizant-hack/worker/src/main.py /c/cognizant-hack/server/src/config.py /c/cognizant-hack/server/src/deps.py /c/cognizant-hack/server/src/routes/traces.py /c/cognizant-hack/server/src/routes/consent.py /c/cognizant-hack/server/src/routes/customer.py /c/cognizant-hack/server/src/routes/jobs.py /c/cognizant-hack/server/src/routes/recommend.py /c/cognizant-hack/server/src/routes/events.py /c/cognizant-hack/scripts/show_trace.py)",
+      "Bash(python -m py_compile /c/cognizant-hack/server/src/config.py /c/cognizant-hack/server/src/middleware/rate_limit.py /c/cognizant-hack/server/src/routes/events.py /c/cognizant-hack/server/src/routes/metrics.py /c/cognizant-hack/server/src/main.py /c/cognizant-hack/scripts/demo_backpressure.py)",
+      "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T server python /app/scripts/demo_backpressure.py)",
+      "Bash(python -m py_compile /c/cognizant-hack/scripts/demo_scale.py)",
+      "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T server python /app/scripts/demo_scale.py)",
+      "Bash(python -m py_compile /c/cognizant-hack/server/src/deps.py /c/cognizant-hack/shared/queue.py /c/cognizant-hack/server/src/routes/recommend.py /c/cognizant-hack/scripts/demo_async_recommend.py)",
+      "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T server python /app/scripts/demo_async_recommend.py)"
     ],
     "additionalDirectories": [
       "C:\\cognizant-hack"

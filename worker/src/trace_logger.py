@@ -1,16 +1,23 @@
-"""SQLite-backed trace logger.
+"""Per-worker SQLite trace writer.
 
-Writes one row per agent step. Phase 9 will sync the file to S3 after
-each job completes; for now traces live at /tmp/agent_traces.db inside
-the worker container and are wiped on container restart.
+Each worker container writes to its own file: agent_traces_{hostname}.db.
+That lets us run multiple workers concurrently without all of them
+fighting over a single SQLite write lock.
+
+Reads are handled by shared.trace_reader.read_traces, which globs every
+worker's file in the trace dir and merges results.
 """
 
 import json
+import logging
 import os
+import socket
 import sqlite3
 import threading
 from datetime import datetime, timezone
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 
 _SCHEMA = """
@@ -29,12 +36,21 @@ CREATE INDEX IF NOT EXISTS idx_traces_job ON traces(job_id);
 """
 
 
+def _hostname_safe() -> str:
+    """Hostname that's safe to embed in a filename. Docker compose container
+    names are already filesystem-safe (e.g. hyperpersona-worker-1)."""
+    raw = os.environ.get("HOSTNAME") or socket.gethostname() or "unknown"
+    return "".join(c if c.isalnum() or c in "-_" else "_" for c in raw)
+
+
 class TraceLogger:
-    def __init__(self, db_path: str = "/app/traces/agent_traces.db") -> None:
-        self.db_path = db_path
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    def __init__(self, db_dir: str = "/app/traces") -> None:
+        os.makedirs(db_dir, exist_ok=True)
+        self.db_dir = db_dir
+        self.db_path = os.path.join(db_dir, f"agent_traces_{_hostname_safe()}.db")
         self._lock = threading.Lock()
         self._init_db()
+        log.info("TraceLogger writing to %s", self.db_path)
 
     def _init_db(self) -> None:
         conn = sqlite3.connect(self.db_path)
@@ -77,6 +93,8 @@ class TraceLogger:
                 conn.close()
 
     def get_traces(self, job_id: str) -> list[dict]:
+        """Read traces from this worker's file only. For cross-worker reads
+        use shared.trace_reader.read_traces."""
         conn = sqlite3.connect(self.db_path)
         try:
             cur = conn.execute(

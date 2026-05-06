@@ -2,13 +2,10 @@
 
 from fastapi import APIRouter, HTTPException
 
-from shared.dynamo import DynamoClient
-
-from ..config import settings
+from ..deps import dynamo as _dynamo
 
 
 router = APIRouter()
-_dynamo = DynamoClient(endpoint=settings.dynamodb_endpoint, region=settings.aws_region)
 
 
 @router.get("/jobs/{job_id}")

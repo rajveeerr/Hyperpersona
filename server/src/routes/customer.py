@@ -18,19 +18,15 @@ from shared.constants import (
     COLLECTION_FACTS,
     COLLECTION_SESSIONS,
 )
-from shared.dynamo import DynamoClient
-from shared.queue import make_redis
-from shared.vector_store import make_vector_store
 
-from ..config import settings
+from ..deps import dynamo as _dynamo
+from ..deps import redis_client as _redis
+from ..deps import vectors as _vectors
 from ..middleware.auth import current_customer_id
 
 
 log = logging.getLogger(__name__)
 router = APIRouter()
-
-_dynamo = DynamoClient(endpoint=settings.dynamodb_endpoint, region=settings.aws_region)
-_redis = make_redis(settings.redis_url)
 
 
 def _delete_redis_for_customer(customer_id: str) -> int:
@@ -45,13 +41,6 @@ def _delete_redis_for_customer(customer_id: str) -> int:
         if _redis.delete(key):
             deleted += 1
     return deleted
-
-
-_vectors = make_vector_store(
-    mode="opensearch",
-    host=settings.opensearch_host,
-    port=settings.opensearch_port,
-)
 
 
 def _delete_vectors_for_customer(customer_id: str) -> int:

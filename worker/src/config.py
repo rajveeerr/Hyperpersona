@@ -17,8 +17,10 @@ class Settings(BaseSettings):
     opensearch_host: str = "opensearch"
     opensearch_port: int = 9200
 
-    # Trace SQLite path — shared volume between worker and server
-    traces_db_path: str = "/app/traces/agent_traces.db"
+    # Trace SQLite directory — shared volume between worker and server.
+    # Each worker writes its own file (agent_traces_{hostname}.db) inside
+    # this dir; the server globs the dir to read across all workers.
+    traces_db_dir: str = "/app/traces"
 
     # Event processing mode:
     #   "full"   — every event runs the full supervisor pipeline (max accuracy)

@@ -59,3 +59,18 @@ def pop_result(
     """BRPOP a result for a job. Returns None on timeout."""
     result = client.brpop(_result_key(job_id), timeout=timeout)
     return result[1] if result else None
+
+
+async def pop_result_async(
+    client_async,
+    job_id: str,
+    timeout: int = 30,
+) -> str | None:
+    """Async BRPOP — for use inside FastAPI async handlers. Releases the
+    event loop while waiting, so one process can multiplex many waits
+    instead of pinning one thread per in-flight request.
+
+    `client_async` must be a redis.asyncio client (see server/src/deps.py).
+    """
+    result = await client_async.brpop(_result_key(job_id), timeout=timeout)
+    return result[1] if result else None

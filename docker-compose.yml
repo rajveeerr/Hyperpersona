@@ -21,10 +21,13 @@ services:
       AWS_ACCESS_KEY_ID: local
       AWS_SECRET_ACCESS_KEY: local
       API_KEY: ${API_KEY:-test-key}
+      TRACES_DB_DIR: /app/traces
+      MAX_QUEUE_DEPTH: ${MAX_QUEUE_DEPTH:-10000}
+      MAX_EVENTS_PER_CUSTOMER_PER_MIN: ${MAX_EVENTS_PER_CUSTOMER_PER_MIN:-100}
+      MAX_REQUESTS_PER_KEY_PER_MIN: ${MAX_REQUESTS_PER_KEY_PER_MIN:-1000}
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       JWT_EXPIRY_HOURS: ${JWT_EXPIRY_HOURS:-24}
-      TRACES_DB_PATH: /app/traces/agent_traces.db
     depends_on:
       - redis
       - dynamodb-local
@@ -40,7 +43,10 @@ services:
     build:
       context: .
       dockerfile: worker/Dockerfile
-    container_name: hyperpersona-worker-1
+    # No container_name — worker is the one service we scale horizontally
+    # (`docker compose up --scale worker=N`). Compose auto-names replicas as
+    # hyperpersona-worker-1, hyperpersona-worker-2, ... when no container_name
+    # is set. Each replica gets its own SQLite trace file via TraceLogger.
     volumes:
       - ./worker/src:/app/src
       - ./shared:/app/shared
@@ -49,7 +55,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
       DYNAMODB_ENDPOINT: http://dynamodb-local:8000
-      TRACES_DB_PATH: /app/traces/agent_traces.db
+      TRACES_DB_DIR: /app/traces
       AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}

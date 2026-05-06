@@ -1,4 +1,4 @@
-.PHONY: up down logs build server worker restart-worker setup-db setup-opensearch seed-consent scan-events scan-jobs scan-consent scan-vectors peek-queue test-bedrock test-tools test-recommend test-privacy test-e2e demo-conflict demo-tiered show-trace clean ps
+.PHONY: up down logs build server worker restart-worker setup-db setup-opensearch seed-consent scan-events scan-jobs scan-consent scan-vectors peek-queue test-bedrock test-tools test-recommend test-privacy test-e2e demo-conflict demo-tiered demo-backpressure demo-scale demo-async-recommend scale worker-count show-trace clean ps
 
 up:
 	docker compose up -d --build
@@ -84,6 +84,29 @@ demo-conflict:
 # low-signal events get cheap-stored and rolled into session summaries.
 demo-tiered:
 	docker compose exec server python /app/scripts/demo_tiered.py
+
+# Step 4 — backpressure + per-customer rate limit
+demo-backpressure:
+	docker compose exec server python /app/scripts/demo_backpressure.py
+
+# Step 5 — horizontal worker scaling
+# Usage: make scale N=4   (defaults to 4)
+N ?= 4
+scale:
+	docker compose up -d --scale worker=$(N) worker
+
+worker-count:
+	docker compose ps worker --format "table {{.Name}}\t{{.Status}}"
+
+# Stress test: send 40 high-signal events, time how long until they all complete.
+# Run before/after `make scale N=4` to see the throughput speedup.
+demo-scale:
+	docker compose exec server python /app/scripts/demo_scale.py
+
+# Step 6 — async /recommend handler. Fires N concurrent /recommend, shows
+# they run in parallel on the server's event loop instead of serialising.
+demo-async-recommend:
+	docker compose exec server python /app/scripts/demo_async_recommend.py
 
 ps:
 	docker compose ps

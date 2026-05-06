@@ -2,15 +2,13 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from shared.dynamo import DynamoClient
 from shared.schemas import ConsentRecord, ConsentUpsertRequest
 
-from ..config import settings
+from ..deps import dynamo as _dynamo
 from ..middleware.auth import current_customer_id
 
 
 router = APIRouter()
-_dynamo = DynamoClient(endpoint=settings.dynamodb_endpoint, region=settings.aws_region)
 
 
 def _clean(record: dict) -> dict:
