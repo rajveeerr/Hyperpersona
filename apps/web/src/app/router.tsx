@@ -16,6 +16,7 @@ const CheckoutPage = lazy(() => import("@/pages/CheckoutPage").then((m) => ({ de
 const ConsentPage = lazy(() => import("@/pages/ConsentPage").then((m) => ({ default: m.ConsentPage })));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
 const MCPPage = lazy(() => import("@/pages/MCPPage").then((m) => ({ default: m.MCPPage })));
+const TracesPage = lazy(() => import("@/pages/TracesPage").then((m) => ({ default: m.TracesPage })));
 const LoginPage = lazy(() => import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage").then((m) => ({ default: m.RegisterPage })));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage })));
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
         ),
       },
       { path: "mcp", element: <MCPPage /> },
+      { path: "traces", element: <TracesPage /> },
       { path: "cart", element: <CartPage /> },
       {
         path: "checkout",

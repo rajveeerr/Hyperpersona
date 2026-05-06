@@ -30,6 +30,7 @@ import type {
   RegisterRequest,
   SetReviewHelpfulBody,
   SetReviewHelpfulResponse,
+  TraceRow,
   WishlistResponse,
 } from "@/shared/api/contracts";
 
@@ -275,6 +276,15 @@ export const apiClient = {
     request<CartResponse>(`/me/cart/items/${encodeURIComponent(productId)}`, {
       method: "DELETE",
     }),
+
+  // --- Agent traces (mirrors `server/src/routes/traces.py`) ---
+  /**
+   * Per-job agent execution trace. Server merges rows from every worker's
+   * SQLite file (and falls back to S3 when local files are absent), sorted
+   * by timestamp. Returns 404 if the job has no rows.
+   */
+  getTraces: (jobId: string) =>
+    request<TraceRow[]>(`/traces/${encodeURIComponent(jobId)}`),
 
   // --- Server-side wishlist (mirrors `server/src/routes/me_wishlist.py`) ---
   getWishlist: () => request<WishlistResponse>("/me/wishlist"),
