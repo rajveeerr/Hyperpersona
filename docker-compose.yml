@@ -1,0 +1,59 @@
+name: hyperpersona
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: hyperpersona-server-1
+    command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./server/src:/app/src
+      - ./shared:/app/shared
+    environment:
+      REDIS_URL: redis://redis:6379
+      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+    depends_on:
+      - redis
+      - dynamodb-local
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    container_name: hyperpersona-worker-1
+    volumes:
+      - ./worker/src:/app/src
+      - ./shared:/app/shared
+    environment:
+      REDIS_URL: redis://redis:6379
+      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+    depends_on:
+      - redis
+      - dynamodb-local
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: hyperpersona-redis-1
+    # Not exposed to the host — server/worker reach it via the docker network
+    # at redis://redis:6379. To run redis-cli, use:
+    #   docker exec -it hyperpersona-redis-1 redis-cli
+    restart: unless-stopped
+
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: hyperpersona-dynamodb-1
+    ports:
+      - "8001:8000"
+    command: -jar DynamoDBLocal.jar -sharedDb -inMemory
+    restart: unless-stopped
