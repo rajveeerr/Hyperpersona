@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { formatConfidence } from "@/shared/lib/format";
 import type { RecommendationRail as RecommendationRailType } from "@/shared/api/contracts";
+import { useSpecTrack } from "@/features/events/specEvents";
 import { useTrackEvent } from "@/features/events/useTrackEvent";
 import { tw } from "@/shared/ui/tw";
 
@@ -10,6 +11,13 @@ import { RecommendationAuditDrawer } from "@/features/recommendations/components
 
 type RecommendationRailProps = {
   rail: RecommendationRailType;
+  /**
+   * The `/recommend?context=...` value this rail was rendered for. Required —
+   * we stamp it into `recommendation_clicked.source_context` so the backend
+   * can attribute clicks to the surface that produced them. Build with
+   * `Context.*` helpers, never hand-roll the string.
+   */
+  sourceContext: string;
   /**
    * `editorial` — home personalized strip (cream/white story).
    * `pdp` — product page: same micro-label + prose as editorial, quieter confidence pill, pairing accent on cards.
@@ -23,8 +31,9 @@ const pdpRailTitle =
 const confidencePillPdp =
   "shrink-0 rounded-pill border border-outline/45 bg-white/55 px-3 py-2 text-center text-[0.65rem] font-semibold uppercase tracking-ui-wide text-ink/85 shadow-[0_6px_20px_rgba(34,28,23,0.05)] backdrop-blur-[6px]";
 
-export function RecommendationRail({ rail, presentation = "default" }: RecommendationRailProps) {
+export function RecommendationRail({ rail, sourceContext, presentation = "default" }: RecommendationRailProps) {
   const track = useTrackEvent();
+  const trackSpec = useSpecTrack();
   const [auditOpen, setAuditOpen] = useState(false);
   const impressionTrackedRef = useRef(false);
   const isEditorial = presentation === "editorial";
@@ -37,7 +46,6 @@ export function RecommendationRail({ rail, presentation = "default" }: Recommend
     if (impressionTrackedRef.current) return;
     impressionTrackedRef.current = true;
     track({
-      customer_id: "demo-customer-1",
       event_type: "recommendation_impression",
       payload: {
         railId: rail.id,
@@ -45,10 +53,11 @@ export function RecommendationRail({ rail, presentation = "default" }: Recommend
         fallback: rail.fallback,
         confidence: rail.confidence,
         surface: presentation,
+        source_context: sourceContext,
       },
       consent_scope: ["analytics", "personalization"],
     });
-  }, [track, rail.id, rail.title, rail.fallback, rail.confidence, presentation]);
+  }, [track, rail.id, rail.title, rail.fallback, rail.confidence, presentation, sourceContext]);
 
   return (
     <>
@@ -89,9 +98,8 @@ export function RecommendationRail({ rail, presentation = "default" }: Recommend
             onClick={() => {
               setAuditOpen(true);
               track({
-                customer_id: "demo-customer-1",
-                event_type: "recommendation_click",
-                payload: { railId: rail.id, action: "open_audit", surface: presentation },
+                event_type: "recommendation_audit_opened",
+                payload: { railId: rail.id, surface: presentation, source_context: sourceContext },
                 consent_scope: ["analytics", "personalization"],
               });
             }}
@@ -100,7 +108,17 @@ export function RecommendationRail({ rail, presentation = "default" }: Recommend
           </button>
         </div>
       </div>
-      <ProductGrid products={rail.products} accent={cardAccent} />
+      <ProductGrid
+        products={rail.products}
+        accent={cardAccent}
+        onProductClick={(product) =>
+          trackSpec("recommendation_clicked", {
+            product_id: product.id,
+            category: product.category,
+            source_context: sourceContext,
+          })
+        }
+      />
       </section>
       <RecommendationAuditDrawer rail={rail} open={auditOpen} onClose={() => setAuditOpen(false)} />
     </>

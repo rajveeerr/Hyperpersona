@@ -103,7 +103,7 @@ function ConsentNudgePanel({ variant, onExitComplete, children }: NudgePanelProp
 }
 
 export function ConsentBanner() {
-  const { isAuthenticated, customerId } = useAuth();
+  const { isAuthenticated } = useAuth();
   const track = useTrackEvent();
   const [, forceRerender] = useReducer((c: number) => c + 1, 0);
   const consent = useConsentQuery();
@@ -199,7 +199,6 @@ export function ConsentBanner() {
                 const retention = consent.record?.data_retention_days ?? 90;
                 updateConsent.mutate({ scopes: nextScopes, data_retention_days: retention });
                 track({
-                  customer_id: customerId ?? "demo-customer-1",
                   event_type: "consent_updated",
                   payload: { scopes: nextScopes, data_retention_days: retention, source: "banner" },
                   consent_scope: nextScopes,

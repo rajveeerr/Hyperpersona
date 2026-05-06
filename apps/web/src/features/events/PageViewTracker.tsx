@@ -17,7 +17,6 @@ export function PageViewTracker() {
 
     lastTrackedPath = nextPath;
     track({
-      customer_id: "demo-customer-1",
       event_type: "page_view",
       payload: { path: nextPath },
       consent_scope: ["analytics", "personalization"],

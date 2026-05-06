@@ -48,7 +48,6 @@ export function Footer() {
     const email = String(data.get("email") ?? "").trim();
     if (!email) return;
     track({
-      customer_id: "demo-customer-1",
       event_type: "newsletter_interest",
       payload: { email, source: "footer" },
       consent_scope: ["analytics", "personalization"],

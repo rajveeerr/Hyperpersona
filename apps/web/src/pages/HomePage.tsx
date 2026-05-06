@@ -6,22 +6,24 @@ import { HomePersonalizedSection } from "@/features/home/components/HomePersonal
 import { HomePopularSection } from "@/features/home/components/HomePopularSection";
 import { HomeEditorialClosingSection } from "@/features/home/components/HomeEditorialClosingSection";
 import { ShopperContextEditorialSection } from "@/features/home/components/ShopperContextEditorialSection";
+import { Context } from "@/features/events/contexts";
 import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
 import { apiClient } from "@/shared/api/client";
 import { tw } from "@/shared/ui/tw";
 
 export function HomePage() {
+  const homepageContext = Context.homepage();
   const recommendationsQuery = useQuery({
-    queryKey: ["home-recommendations"],
-    queryFn: apiClient.getHomeRecommendations,
+    queryKey: ["recommend", homepageContext],
+    queryFn: () => apiClient.getRecommendation(homepageContext),
   });
 
   const recommendationMode: "loading" | "personalized" | "generic" | "cold-start" =
     recommendationsQuery.isLoading || recommendationsQuery.isPending
       ? "loading"
-      : !recommendationsQuery.data || recommendationsQuery.data.length === 0
+      : !recommendationsQuery.data
         ? "cold-start"
-        : recommendationsQuery.data.every((rail) => rail.fallback)
+        : recommendationsQuery.data.fallback
           ? "generic"
           : "personalized";
 
@@ -36,11 +38,13 @@ export function HomePage() {
       <HomePersonalizedSection mode={recommendationMode}>
         {recommendationsQuery.isLoading ? (
           <p className={`text-sm ${tw.muted}`}>Loading personalized picks…</p>
-        ) : (
-          recommendationsQuery.data?.map((rail) => (
-            <RecommendationRail key={rail.id} rail={rail} presentation="editorial" />
-          ))
-        )}
+        ) : recommendationsQuery.data ? (
+          <RecommendationRail
+            rail={recommendationsQuery.data}
+            sourceContext={homepageContext}
+            presentation="editorial"
+          />
+        ) : null}
       </HomePersonalizedSection>
 
       {/* Profile lab then Sonnette-style closing strip before the global footer */}

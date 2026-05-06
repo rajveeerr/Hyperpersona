@@ -159,7 +159,6 @@ export type ReviewTelemetryPayload = {
  */
 export type CommerceTelemetryEventType =
   | "product_tile_clicked"
-  | "product_pdp_viewed"
   | "pdp_tab_selected"
   | "pdp_variant_selected"
   | "pdp_quantity_changed"
@@ -174,7 +173,6 @@ export type CommerceTelemetryPayload = {
     vertical?: ProductVertical;
     source: "grid" | "rail" | "search" | "other";
   };
-  product_pdp_viewed: { productId: string; slug: string; vertical?: ProductVertical; freeDelivery?: boolean };
   pdp_tab_selected: { productId: string; slug: string; tab: string };
   pdp_variant_selected: {
     productId: string;
@@ -196,22 +194,6 @@ export type ProductListResponse = {
   personalized: boolean;
   /** @deprecated Prefer `GET /catalog/facets` — kept optional for older mocks/backends. */
   facets?: CatalogFacetGroup[];
-};
-
-export type DeliveryAddress = {
-  id: string;
-  label: string;
-  line1: string;
-  line2?: string;
-  city: string;
-  region?: string;
-  postalCode: string;
-  country: string;
-  isDefault?: boolean;
-};
-
-export type DeliveryAddressListResponse = {
-  items: DeliveryAddress[];
 };
 
 export type OrderLine = {
@@ -252,6 +234,8 @@ export type RecommendationRail = {
   confidence: number;
   fallback: boolean;
   products: Product[];
+  /** True when the response came from the 5-minute Redis cache (server-stamped). */
+  cached?: boolean;
 };
 
 /**

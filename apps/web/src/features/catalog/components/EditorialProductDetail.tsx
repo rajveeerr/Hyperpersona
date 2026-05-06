@@ -53,7 +53,6 @@ export function EditorialProductDetail({
     (next: DetailTab) => {
       setTab(next);
       track({
-        customer_id: "demo-customer-1",
         event_type: "pdp_tab_selected",
         payload: { productId: product.id, slug: product.slug, tab: next },
         consent_scope: ["analytics", "personalization"],
@@ -65,7 +64,6 @@ export function EditorialProductDetail({
   const emitVariant = useCallback(
     (optionKind: "color" | "size" | "storage", optionId: string, optionLabel: string) => {
       track({
-        customer_id: "demo-customer-1",
         event_type: "pdp_variant_selected",
         payload: { productId: product.id, slug: product.slug, optionKind, optionId, optionLabel },
         consent_scope: ["analytics", "personalization"],
@@ -74,6 +72,8 @@ export function EditorialProductDetail({
     [product.id, product.slug, track],
   );
 
+  // The spec `product_view` event is fired from `ProductPage` (with spec payload).
+  // This effect is now just internal-state reset on slug change.
   useEffect(() => {
     setColorId(product.colorOptions?.[0]?.id ?? "");
     setSizeId(product.sizeOptions?.[0]?.id ?? "");
@@ -81,19 +81,7 @@ export function EditorialProductDetail({
     setActiveImage(0);
     setQty(1);
     setTab("description");
-
-    track({
-      customer_id: "demo-customer-1",
-      event_type: "product_pdp_viewed",
-      payload: {
-        productId: product.id,
-        slug: product.slug,
-        vertical: product.vertical ?? "general",
-        freeDelivery: product.freeDelivery === true,
-      },
-      consent_scope: ["analytics", "personalization"],
-    });
-  }, [product.freeDelivery, product.id, product.slug, product.vertical, track]);
+  }, [product.id, product.colorOptions, product.sizeOptions, product.storageOptions]);
 
   const variantContext = useMemo(() => {
     const ctx: Record<string, string> = {};
@@ -109,7 +97,6 @@ export function EditorialProductDetail({
       const next = Math.min(20, Math.max(1, q + delta));
       if (next !== q) {
         track({
-          customer_id: "demo-customer-1",
           event_type: "pdp_quantity_changed",
           payload: { productId: product.id, slug: product.slug, quantity: next },
           consent_scope: ["analytics", "personalization"],
@@ -138,7 +125,6 @@ export function EditorialProductDetail({
 
   const onReportProduct = useCallback(() => {
     track({
-      customer_id: "demo-customer-1",
       event_type: "pdp_report_product_clicked",
       payload: { productId: product.id, slug: product.slug },
       consent_scope: ["analytics", "personalization"],

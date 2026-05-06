@@ -83,7 +83,6 @@ export function ProfilePage() {
             );
             mutation.mutate(next);
             track({
-              customer_id: "demo-customer-1",
               event_type: "profile_updated",
               payload: { field: "budget", value: "$40-$120" },
               consent_scope: ["analytics", "personalization"],

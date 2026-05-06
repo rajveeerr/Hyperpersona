@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { DemoPersona } from "@/features/personas/data";
 import { usePersonaStore } from "@/features/personas/store";
+import { Context } from "@/features/events/contexts";
 import { useTrackEvent } from "@/features/events/useTrackEvent";
 import { apiClient } from "@/shared/api/client";
 import type { RecommendationRail } from "@/shared/api/contracts";
@@ -40,21 +41,22 @@ const scenarios: DemoScenario[] = [
   },
 ];
 
-function toGenericRails(rails: RecommendationRail[]): RecommendationRail[] {
-  return rails.map((rail) => ({
+function toGenericRail(rail: RecommendationRail | undefined): RecommendationRail | null {
+  if (!rail) return null;
+  return {
     ...rail,
     fallback: true,
     confidence: 0.5,
     reason: "Generic merchandising fallback (no personalization signal applied).",
-  }));
+  };
 }
 
-function RailSnapshot({ title, rails }: { title: string; rails: RecommendationRail[] }) {
+function RailSnapshot({ title, rail }: { title: string; rail: RecommendationRail | null }) {
   return (
     <section className="rounded-card border border-outline/25 bg-white/65 p-4 sm:p-5">
       <p className={`text-[0.65rem] font-semibold uppercase tracking-[0.16em] ${tw.muted}`}>{title}</p>
       <ul className="m-0 mt-3 list-none space-y-2 p-0">
-        {rails.slice(0, 2).map((rail) => (
+        {rail ? (
           <li key={`${title}-${rail.id}`} className="rounded-md border border-outline/15 bg-white/60 px-3 py-2.5">
             <p className="text-sm font-medium text-ink/90">{rail.title}</p>
             <p className={`mt-1 text-[0.78rem] leading-relaxed ${tw.muted}`}>{rail.reason}</p>
@@ -65,7 +67,11 @@ function RailSnapshot({ title, rails }: { title: string; rails: RecommendationRa
               {rail.products.slice(0, 3).map((p) => p.name).join(" · ")}
             </p>
           </li>
-        ))}
+        ) : (
+          <li className={`rounded-md border border-outline/15 bg-white/60 px-3 py-2.5 text-[0.78rem] ${tw.muted}`}>
+            Loading rail…
+          </li>
+        )}
       </ul>
     </section>
   );
@@ -117,18 +123,19 @@ function FakeOrderOutcomeLoop() {
           onClick={() => {
             const next = step === 2 ? 0 : ((step + 1) as 0 | 1 | 2);
             setStep(next);
+            // Simulated demo-lab events — keep local-only namespace so they
+            // don't pollute spec analytics; the real `purchase` event is
+            // fired from `CheckoutForm` for genuine cart conversions.
             if (next === 1) {
               track({
-                customer_id: "demo-customer-1",
-                event_type: "checkout_started",
+                event_type: "demo_lab_checkout_started",
                 payload: { source: "demo_lab" },
                 consent_scope: ["analytics", "personalization"],
               });
             }
             if (next === 2) {
               track({
-                customer_id: "demo-customer-1",
-                event_type: "checkout_completed",
+                event_type: "demo_lab_checkout_simulated",
                 payload: { source: "demo_lab", simulated: true },
                 consent_scope: ["analytics", "personalization"],
               });
@@ -151,9 +158,10 @@ export function DemoLabPage() {
   const setPersona = usePersonaStore((state) => state.setPersona);
   const [activeScenarioId, setActiveScenarioId] = useState<string>(scenarios[0].id);
 
+  const homepageContext = Context.homepage();
   const recommendationQuery = useQuery({
-    queryKey: ["home-recommendations"],
-    queryFn: apiClient.getHomeRecommendations,
+    queryKey: ["recommend", homepageContext],
+    queryFn: () => apiClient.getRecommendation(homepageContext),
   });
   const consentQuery = useQuery({
     queryKey: ["consent"],
@@ -170,10 +178,10 @@ export function DemoLabPage() {
     [activeScenarioId],
   );
 
-  const rails = recommendationQuery.data ?? [];
-  const genericRails = toGenericRails(rails);
-  const personalizedCount = rails.filter((r) => !r.fallback).length;
-  const genericCount = rails.filter((r) => r.fallback).length;
+  const personalizedRail = recommendationQuery.data ?? null;
+  const genericRail = toGenericRail(recommendationQuery.data);
+  const personalizedCount = personalizedRail && !personalizedRail.fallback ? 1 : 0;
+  const genericCount = personalizedRail && personalizedRail.fallback ? 1 : 0;
 
   return (
     <div className={`${tw.stackLg} min-h-[min(80vh,920px)] pt-8 sm:pt-10 lg:pt-12 pb-12 sm:pb-14 lg:pb-16`}>
@@ -201,7 +209,6 @@ export function DemoLabPage() {
                 setPersona(scenario.personaId);
                 updateConsent.mutate(scenario.consentScopes);
                 track({
-                  customer_id: "demo-customer-1",
                   event_type: "persona_switched",
                   payload: { personaId: scenario.personaId, preset: scenario.id },
                   consent_scope: ["analytics", "personalization"],
@@ -228,8 +235,8 @@ export function DemoLabPage() {
 
       <section className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center" aria-label="Step 2 comparison">
         <div className="grid gap-4 lg:grid-cols-2">
-          <RailSnapshot title="Generic comparison snapshot" rails={genericRails} />
-          <RailSnapshot title="Personalized comparison snapshot" rails={rails} />
+          <RailSnapshot title="Generic comparison snapshot" rail={genericRail} />
+          <RailSnapshot title="Personalized comparison snapshot" rail={personalizedRail} />
         </div>
         <aside className="hidden lg:flex lg:flex-col lg:items-center lg:gap-3">
           <img

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { startTransition, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
@@ -8,7 +8,9 @@ import { z } from "zod";
 import { BagSkeleton } from "@/features/cart/components/BagSkeleton";
 import { useCartHydrated } from "@/features/cart/useCartHydrated";
 import { useCartStore, getCartSubtotal } from "@/features/cart/store";
-import { useTrackEvent } from "@/features/events/useTrackEvent";
+import { Context } from "@/features/events/contexts";
+import { useSpecTrack } from "@/features/events/specEvents";
+import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
 import { apiClient } from "@/shared/api/client";
 import { formatCurrency } from "@/shared/lib/format";
 import { tw } from "@/shared/ui/tw";
@@ -74,9 +76,15 @@ export function CheckoutForm() {
   const hydrated = useCartHydrated();
   const items = useCartStore((state) => state.items);
   const clear = useCartStore((state) => state.clear);
-  const track = useTrackEvent();
+  const trackSpec = useSpecTrack();
   const [done, setDone] = useState<DoneState | null>(null);
   const subtotal = getCartSubtotal(items);
+  const postPurchaseContext = Context.postPurchase();
+  const postPurchaseQuery = useQuery({
+    queryKey: ["recommend", postPurchaseContext],
+    queryFn: () => apiClient.getRecommendation(postPurchaseContext),
+    enabled: done !== null,
+  });
 
   const form = useForm<CheckoutFormValues>({
     resolver: zodResolver(checkoutSchema),
@@ -109,12 +117,19 @@ export function CheckoutForm() {
         lineTotal: item.product.price * item.quantity,
       }));
       const st = getCartSubtotal(items);
-      track({
-        customer_id: "demo-customer-1",
-        event_type: "checkout_completed",
-        payload: { orderId: response.orderId, subtotal: st },
-        consent_scope: ["analytics", "personalization"],
-      });
+      // Spec: emit one `purchase` event per line item so the recommender can
+      // attribute conversions to individual products (not just to the order).
+      // The tracker batches them — at most one network request even with a
+      // 50-line cart.
+      for (const item of items) {
+        trackSpec("purchase", {
+          product_id: item.product.id,
+          product_name: item.product.name,
+          category: item.product.category,
+          price: item.product.price,
+          quantity: item.quantity,
+        });
+      }
       startTransition(() => {
         setDone({ orderId: response.orderId, lines, subtotal: st });
         clear();
@@ -183,6 +198,14 @@ export function CheckoutForm() {
             View bag
           </Link>
         </div>
+
+        {postPurchaseQuery.data ? (
+          <RecommendationRail
+            rail={postPurchaseQuery.data}
+            sourceContext={postPurchaseContext}
+            presentation="default"
+          />
+        ) : null}
       </div>
     );
   }

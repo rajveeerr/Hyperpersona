@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useId, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 
 import { useDebugEventStore } from "@/features/events/debug/store";
-import { apiClient } from "@/shared/api/client";
 import { env } from "@/shared/config/env";
 import { tw } from "@/shared/ui/tw";
 
@@ -36,12 +34,6 @@ export function DebugEventPanel() {
   const [open, setOpen] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.sessionStorage.getItem(STORAGE_KEY) === "1";
-  });
-
-  useQuery({
-    queryKey: ["debug-events"],
-    queryFn: apiClient.getDebugEvents,
-    refetchInterval: 5_000,
   });
 
   const setOpenPersisted = useCallback((next: boolean) => {

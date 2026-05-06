@@ -35,16 +35,20 @@ type ProductGridProps = {
   products: Product[];
   /** Passed to `ProductCard` when the rail should explain why tiles appear (search, recommendations). */
   accent?: string;
+  /** Forwarded to each `ProductCard` — used by recommendation rails for `recommendation_clicked`. */
+  onProductClick?: (product: Product) => void;
 };
 
 function CatalogGridMotionItem({
   product,
   accent,
   reduced,
+  onProductClick,
 }: {
   product: Product;
   accent?: string;
   reduced: boolean;
+  onProductClick?: (product: Product) => void;
 }) {
   return (
     <motion.li
@@ -60,18 +64,24 @@ function CatalogGridMotionItem({
           : { type: "spring", stiffness: 400, damping: 22, mass: 0.58 }
       }
     >
-      <ProductCard product={product} accent={accent} />
+      <ProductCard product={product} accent={accent} onClick={onProductClick} />
     </motion.li>
   );
 }
 
 /** Transparent 3-up lattice + `ProductCard` — inherits parent background. */
-export function ProductGrid({ products, accent }: ProductGridProps) {
+export function ProductGrid({ products, accent, onProductClick }: ProductGridProps) {
   const reduced = useReducedMotion() ?? false;
   return (
     <ul className={catalogGridShellListClass} role="list">
       {products.map((product) => (
-        <CatalogGridMotionItem key={product.id} product={product} accent={accent} reduced={reduced} />
+        <CatalogGridMotionItem
+          key={product.id}
+          product={product}
+          accent={accent}
+          reduced={reduced}
+          onProductClick={onProductClick}
+        />
       ))}
     </ul>
   );

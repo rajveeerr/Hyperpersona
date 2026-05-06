@@ -11,14 +11,11 @@ import type {
   ConsentRecord,
   CreateProductReviewBody,
   CreateProductReviewResponse,
-  DeliveryAddress,
-  DeliveryAddressListResponse,
   ExplanationRecord,
   IngestBatchResponse,
   IngestEventRequest,
   LoginRequest,
   OrderListResponse,
-  OrderSummary,
   Product,
   ProductListResponse,
   ProductReviewsResponse,
@@ -27,7 +24,6 @@ import type {
   RegisterRequest,
   SetReviewHelpfulBody,
   SetReviewHelpfulResponse,
-  TrackedEvent,
 } from "@/shared/api/contracts";
 
 /**
@@ -170,11 +166,14 @@ export const apiClient = {
   searchProducts: (params = "") => request<ProductListResponse>(`/search${params}`),
 
   // --- Recommendations ---
-  getHomeRecommendations: () => request<RecommendationRail[]>("/recommendations/home"),
-  getSurfaceRecommendations: (surface: string, value?: string) =>
-    request<RecommendationRail[]>(
-      `/recommendations/${surface}${value ? `?productId=${encodeURIComponent(value)}` : ""}`,
-    ),
+  /**
+   * Unified recommendation endpoint. Pass a context string from
+   * `Context.*` helpers ([apps/web/src/features/events/contexts.ts]) — never
+   * hand-build the value, since the server caches per (customer_id, context_hash)
+   * for 5 minutes and ad-hoc strings would balloon the keyspace.
+   */
+  getRecommendation: (context: string) =>
+    request<RecommendationRail>(`/recommend?context=${encodeURIComponent(context)}`),
 
   // --- Consent / profile ---
   getConsent: () => request<ConsentRecord>("/consent"),
@@ -215,7 +214,6 @@ export const apiClient = {
       body: JSON.stringify({ events }),
       keepalive: opts.keepalive,
     }),
-  getDebugEvents: () => request<TrackedEvent[]>("/debug/events"),
 
   // --- Commerce ---
   checkout: (body: CheckoutInput) =>
@@ -224,15 +222,4 @@ export const apiClient = {
       body: JSON.stringify(body),
     }),
   getOrders: (params = "") => request<OrderListResponse>(`/me/orders${params}`),
-  patchOrderDeliveryAddress: (orderId: string, deliveryAddressId: string) =>
-    request<OrderSummary>(`/me/orders/${encodeURIComponent(orderId)}/delivery-address`, {
-      method: "PATCH",
-      body: JSON.stringify({ deliveryAddressId }),
-    }),
-  getAddresses: () => request<DeliveryAddressListResponse>("/me/addresses"),
-  patchAddress: (id: string, body: Partial<DeliveryAddress>) =>
-    request<DeliveryAddress>(`/me/addresses/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    }),
 };

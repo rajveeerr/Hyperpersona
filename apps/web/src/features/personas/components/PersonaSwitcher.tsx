@@ -48,7 +48,6 @@ export const PersonaSwitcher = ({ embedded = false }: PersonaSwitcherProps) => {
               onClick={() => {
                 setPersona(item.id);
                 track({
-                  customer_id: "demo-customer-1",
                   event_type: "persona_switched",
                   payload: { personaId: item.id, label: item.label },
                   consent_scope: ["analytics", "personalization"],

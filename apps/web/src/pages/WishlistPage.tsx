@@ -1,10 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
 import { CatalogProductGridSkeleton } from "@/features/catalog/components/CatalogSkeletons";
 import { ProductGrid } from "@/features/catalog/components/ProductGrid";
-import { products } from "@/mocks/data/products";
+import { Context } from "@/features/events/contexts";
+import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
 import { useWishlistStore } from "@/features/wishlist/store";
 import { useWishlistHydrated } from "@/features/wishlist/useWishlistHydrated";
+import { apiClient } from "@/shared/api/client";
 import { tw } from "@/shared/ui/tw";
 
 /** Stroked heart only — no image plate or fill block (transparent on body canvas). */
@@ -30,9 +33,14 @@ function WishlistEmptyIllustration() {
 
 export function WishlistPage() {
   const hydrated = useWishlistHydrated();
-  const productIds = useWishlistStore((state) => state.productIds);
-  const wishlistProducts = products.filter((product) => productIds.includes(product.id));
+  const wishlistProducts = useWishlistStore((state) => state.items);
   const hasItems = wishlistProducts.length > 0;
+  const wishlistContext = Context.wishlist();
+  const recommendationsQuery = useQuery({
+    queryKey: ["recommend", wishlistContext],
+    queryFn: () => apiClient.getRecommendation(wishlistContext),
+    enabled: hydrated,
+  });
 
   return (
     <div
@@ -71,6 +79,14 @@ export function WishlistPage() {
           </div>
         </div>
       )}
+
+      {hydrated && recommendationsQuery.data ? (
+        <RecommendationRail
+          rail={recommendationsQuery.data}
+          sourceContext={wishlistContext}
+          presentation="default"
+        />
+      ) : null}
     </div>
   );
 }

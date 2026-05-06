@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 
@@ -9,8 +9,10 @@ import {
 } from "@/features/catalog/components/CatalogSkeletons";
 import { ListingEmptyFiltered } from "@/features/catalog/components/ListingEmptyFiltered";
 import { ProductGrid } from "@/features/catalog/components/ProductGrid";
+import { Context } from "@/features/events/contexts";
 import { useDebugEventStore } from "@/features/events/debug/store";
-import { useTrackEvent } from "@/features/events/useTrackEvent";
+import { useSpecTrack } from "@/features/events/specEvents";
+import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
 import { SearchInsightPanel, SearchInsightPanelSkeleton } from "@/features/search/components/SearchInsightPanel";
 import { useFacetStripBusyForScopeChange } from "../features/catalog/hooks/useFacetStripBusyForScopeChange";
 import { useSearchFacets } from "@/features/catalog/hooks/useSearchFacets";
@@ -46,7 +48,7 @@ function buildSearchListParams(args: {
  */
 export function SearchPageListing() {
   const [params, setParams] = useSearchParams();
-  const track = useTrackEvent();
+  const trackSpec = useSpecTrack();
   const q = (params.get("q") ?? "").trim();
   const page = params.get("page") ?? "1";
   const sort = params.get("sort") ?? "featured";
@@ -96,11 +98,10 @@ export function SearchPageListing() {
     next.set("sort", nextSort);
     next.delete("page");
     setParams(next);
-    track({
-      customer_id: "demo-customer-1",
-      event_type: "sort_changed",
-      payload: { sort: nextSort, surface: "search", q },
-      consent_scope: ["analytics", "personalization"],
+    trackSpec("filter_applied", {
+      category: q || "search",
+      filter_type: "sort",
+      filter_value: nextSort,
     });
   };
 
@@ -113,11 +114,10 @@ export function SearchPageListing() {
     }
     next.delete("page");
     setParams(next);
-    track({
-      customer_id: "demo-customer-1",
-      event_type: "filter_change",
-      payload: { filter: "vertical", value: nextVertical || "all", surface: "search", q },
-      consent_scope: ["analytics", "personalization"],
+    trackSpec("filter_applied", {
+      category: q || "search",
+      filter_type: "vertical",
+      filter_value: nextVertical || "all",
     });
   };
 
@@ -130,11 +130,10 @@ export function SearchPageListing() {
     }
     next.delete("page");
     setParams(next);
-    track({
-      customer_id: "demo-customer-1",
-      event_type: "filter_change",
-      payload: { filter: "freeDelivery", value: only, surface: "search", q },
-      consent_scope: ["analytics", "personalization"],
+    trackSpec("filter_applied", {
+      category: q || "search",
+      filter_type: "free_delivery",
+      filter_value: only ? "true" : "false",
     });
   };
 
@@ -158,6 +157,33 @@ export function SearchPageListing() {
         at: recentContextChange.created_at,
       }
     : null;
+
+  // Spec `search` event — fire once per (q, results_count) pair as soon as
+  // results land. Firing here (rather than on form submit) lets us include
+  // an accurate `results_count`; the deduper guards React StrictMode and
+  // the back/forward cache. Pagination doesn't re-fire because we only
+  // fire on the first page.
+  const lastTrackedSearchRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!q) return;
+    if (!query.data) return;
+    if (page !== "1") return;
+    const stamp = `${q}::${query.data.total}`;
+    if (lastTrackedSearchRef.current === stamp) return;
+    lastTrackedSearchRef.current = stamp;
+    trackSpec("search", { query: q, results_count: query.data.total });
+  }, [q, page, query.data, trackSpec]);
+
+  // Pick a `/recommend` context: `no_results` when the query came back empty,
+  // otherwise the spec's general `search:general` (we don't currently surface
+  // a category slug from search results, so general is correct).
+  const isEmptyResults = Boolean(q) && query.data && query.data.items.length === 0;
+  const searchContext = isEmptyResults ? Context.noResults() : Context.search();
+  const recommendationsQuery = useQuery({
+    queryKey: ["recommend", searchContext],
+    queryFn: () => apiClient.getRecommendation(searchContext),
+    enabled: q.length > 0 && Boolean(query.data),
+  });
 
   return (
     <div className={`${tw.stackLg} flex flex-1 flex-col`}>
@@ -267,6 +293,14 @@ export function SearchPageListing() {
                 Next
               </button>
             </nav>
+          ) : null}
+
+          {recommendationsQuery.data ? (
+            <RecommendationRail
+              rail={recommendationsQuery.data}
+              sourceContext={searchContext}
+              presentation="default"
+            />
           ) : null}
         </>
       ) : null}

@@ -4,7 +4,6 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/features/auth/useAuth";
 import { useCartStore } from "@/features/cart/store";
-import { useTrackEvent } from "@/features/events/useTrackEvent";
 import { useWishlistStore } from "@/features/wishlist/store";
 import { tw } from "@/shared/ui/tw";
 
@@ -31,26 +30,17 @@ function BagIcon({ className }: { className?: string }) {
 export function Header() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const track = useTrackEvent();
-  const { isAuthenticated, customerId, email, logout } = useAuth();
+  const { isAuthenticated, email, logout } = useAuth();
   const cartCount = useCartStore((state) => state.items.reduce((sum, item) => sum + item.quantity, 0));
-  const wishlistCount = useWishlistStore((state) => state.productIds.length);
+  const wishlistCount = useWishlistStore((state) => state.items.length);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const query = String(data.get("q") ?? "").trim();
-    if (!query) {
-      return;
-    }
-    // Tracking still falls back to the legacy demo customer id when no real
-    // session exists — Phase 5.4 (event tracker) will drop this fallback.
-    track({
-      customer_id: customerId ?? "demo-customer-1",
-      event_type: "search_submit",
-      payload: { query },
-      consent_scope: ["analytics", "personalization"],
-    });
+    if (!query) return;
+    // Spec `search` event is emitted from `SearchPageListing` once results
+    // land (so `results_count` is accurate). This handler just navigates.
     navigate(`/search?q=${encodeURIComponent(query)}`);
   }
 

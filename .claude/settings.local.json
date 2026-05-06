@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(aws *)"
+      "Bash(aws *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(npx eslint *)",
+      "WebSearch",
+      "Bash(claude mcp *)",
+      "Bash(uv tool *)",
+      "Bash(npx vitest *)",
+      "Bash(grep -E \"\\\\.\\(py|ts\\)$\")"
     ]
   },
   "enabledMcpjsonServers": [

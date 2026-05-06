@@ -1,9 +1,14 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
 import { prefetchProductPageChunk } from "@/app/routeChunks";
 import { BagSkeleton } from "@/features/cart/components/BagSkeleton";
 import { useCartHydrated } from "@/features/cart/useCartHydrated";
 import { type CartItem, getCartSubtotal, useCartStore } from "@/features/cart/store";
+import { Context } from "@/features/events/contexts";
+import { useSpecTrack } from "@/features/events/specEvents";
+import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
+import { apiClient } from "@/shared/api/client";
 import { formatCurrency } from "@/shared/lib/format";
 import { tw } from "@/shared/ui/tw";
 
@@ -110,8 +115,25 @@ export function CartPage() {
   const items = useCartStore((state) => state.items);
   const removeItem = useCartStore((state) => state.removeItem);
   const updateQuantity = useCartStore((state) => state.updateQuantity);
+  const trackSpec = useSpecTrack();
   const subtotal = getCartSubtotal(items);
   const hasItems = items.length > 0;
+  // Wait for hydration so we don't briefly request the wrong context (empty
+  // before the persisted cart loads). Recommendations are gated on hydration.
+  const cartContext = hasItems ? Context.cartActive() : Context.cartEmpty();
+  const recommendationsQuery = useQuery({
+    queryKey: ["recommend", cartContext],
+    queryFn: () => apiClient.getRecommendation(cartContext),
+    enabled: hydrated,
+  });
+
+  const handleRemove = (item: CartItem) => {
+    trackSpec("remove_from_cart", {
+      product_id: item.product.id,
+      category: item.product.category,
+    });
+    removeItem(item.product.id);
+  };
 
   return (
     <div className={`${tw.stackLg} min-h-[min(76vh,880px)] pt-8 sm:pt-10 lg:pt-12 pb-12 sm:pb-14 lg:pb-16`}>
@@ -155,7 +177,7 @@ export function CartPage() {
               <CartLine
                 key={item.product.id}
                 item={item}
-                onRemove={() => removeItem(item.product.id)}
+                onRemove={() => handleRemove(item)}
                 onBumpQty={(delta) =>
                   updateQuantity(item.product.id, Math.min(20, Math.max(1, item.quantity + delta)))
                 }
@@ -181,6 +203,14 @@ export function CartPage() {
           </div>
         </div>
       )}
+
+      {hydrated && recommendationsQuery.data ? (
+        <RecommendationRail
+          rail={recommendationsQuery.data}
+          sourceContext={cartContext}
+          presentation="default"
+        />
+      ) : null}
     </div>
   );
 }

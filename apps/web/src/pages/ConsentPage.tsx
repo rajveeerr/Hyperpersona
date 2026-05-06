@@ -103,7 +103,6 @@ export function ConsentPage() {
         onSubmit={(scopes, retention) => {
           mutation.mutate({ scopes, data_retention_days: retention });
           track({
-            customer_id: customerId ?? "demo-customer-1",
             event_type: "consent_updated",
             payload: { scopes, data_retention_days: retention, action: "create" },
             consent_scope: scopes,
@@ -124,7 +123,6 @@ export function ConsentPage() {
           data_retention_days: consent.record!.data_retention_days,
         });
         track({
-          customer_id: customerId ?? "demo-customer-1",
           event_type: "consent_updated",
           payload: { scopes: nextScopes, data_retention_days: consent.record!.data_retention_days },
           consent_scope: nextScopes,
@@ -133,7 +131,6 @@ export function ConsentPage() {
       onChangeRetention={(retention) => {
         mutation.mutate({ scopes: consent.record!.scopes, data_retention_days: retention });
         track({
-          customer_id: customerId ?? "demo-customer-1",
           event_type: "consent_updated",
           payload: { scopes: consent.record!.scopes, data_retention_days: retention },
           consent_scope: consent.record!.scopes,
