@@ -17,6 +17,15 @@ Picks up from [plan.md](plan.md). Everything below assumes phases 1-8, 11, and 1
 
 Recommended order: 13 → 14 → 15 → 9 → 10 → 16. Dependencies enforce most of this; 16 can slot in anywhere.
 
+## Contract sync note (web + backend)
+
+Before/while executing remaining phases, keep these docs in lockstep:
+- `apps/web/API_HANDOVER_STATUS.md` for "implemented vs pending" API truth
+- `apps/web/API_REQUIREMENTS.md` for target API/event contract
+- `apps/web/FE_PLAN.md` for frontend tracking SDK and context-enrichment expectations
+
+Tracking context expected across event ingestion includes device, local time/day, traffic source/referrer, coarse geo, optional weather, and scroll depth/purchase/return/search outcomes (consent-gated).
+
 ---
 
 ## Phase 13 — AWS account setup

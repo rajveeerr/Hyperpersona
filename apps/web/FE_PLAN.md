@@ -377,6 +377,34 @@ The frontend must emit event-shaped payloads for:
 - **`pdp_*`** events from `CommerceTelemetryEventType` (tabs, variants, quantity, free-delivery badge impression, report click)
 - **future:** combined `sku_option_changed` for high-frequency variant streams, `profile_fit_updated` / `profile_sizing_saved`
 
+### Frontend tracking SDK module (add/maintain)
+
+Maintain a lightweight frontend event SDK layer instead of ad hoc `trackEvent` calls in feature code.
+
+Minimum module expectations:
+- single `track(eventType, payload, options)` API
+- shared context enrichment (below) before dispatch
+- consent-aware gating and redaction hooks
+- retry + offline queue + batch flush strategy for non-critical events
+- typed event contracts (reuse `contracts.ts` event payload types)
+- transport adapters (`/events` now, future `/events/batch`)
+
+### Contextual data enrichment requirements
+
+In addition to feature payloads, include contextual metadata for every trackable interaction where policy allows:
+
+- device and client: device type (mobile/tablet/desktop), OS, browser, user agent
+- session timing: local timestamp, hour-of-day, day-of-week, timezone
+- acquisition context: traffic source / medium / campaign (`utm_*`, referrer domain, "google", "tiktok", etc.)
+- location context: coarse geo from IP lookup (country/region/city), no precise GPS by default
+- environmental context (optional): local weather snapshot
+- commerce behavior: scroll depth on listing/search/PDP, product impressions, final purchase, returns, search query terms
+
+Privacy constraints:
+- capture only coarse, necessary context for personalization/analytics
+- gate storage/processing by consent scope
+- avoid storing raw sensitive PII in event payloads
+
 ## Detailed Phase Plan
 
 ### Phase 1 — foundation and believable shopper experience

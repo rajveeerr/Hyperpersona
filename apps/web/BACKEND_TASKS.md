@@ -2,7 +2,18 @@
 
 ## Purpose
 
-This file tracks backend work needed to support the new frontend demo app. None of these tasks are implemented in the current frontend-only phase.
+This file tracks backend work needed to support the web frontend contract.
+
+Reality check (2026-05-05): this is no longer "frontend-only". A real `server/` + `worker/` stack exists and some APIs are already live. See `API_HANDOVER_STATUS.md` for the implementation ledger.
+
+## Completed on real backend (can be treated as done)
+
+- `POST /events` ingestion with consent gating and worker job enqueue
+- `GET /recommend` (job-backed recommendation response + cache)
+- consent routes: `POST /consent`, `GET /consent/{customer_id}`
+- `GET /jobs/{job_id}`
+- `GET /traces/{job_id}`
+- `DELETE /customer/{customer_id}` right-to-delete flow
 
 ## Already Represented In Current Plan Or Schema
 
@@ -13,7 +24,7 @@ This file tracks backend work needed to support the new frontend demo app. None 
 - recommendation generation concept
 - profile and memory architecture in DynamoDB, Redis, and OpenSearch
 
-## New Backend Work Required By Frontend
+## Remaining Backend Work Required By Frontend
 
 ### Catalog
 
