@@ -1,24 +1,29 @@
-"""Complementary-products recommender (per-cart reasoning).
+"""Complementary-products recommender (per-cart, personalized).
 
-Given a customer's cart, recommends products typically bought TOGETHER
-(complements) — not similar items (substitutes).
+Given a customer's cart and their ACE-ranked preference facts, recommends
+products typically bought TOGETHER (complements) — biased toward what this
+customer specifically tends to engage with.
 
 Pipeline:
-  1. Hydrate cart products from product_catalog (DDB BatchGetItem)
-  2. Pull candidate set: full catalog minus cart items (small catalog;
-     for production, filter by category-complementarity instead)
-  3. Build a single prompt with cart contents + candidate list
-  4. Claude returns ranked JSON of complement product_ids + reasons
-  5. Hydrate full product details for the response
+  1. Hydrate cart products from the lean `product_catalog` table (cart_items
+     IDs come in this namespace — unchanged from the legacy contract).
+  2. Build a user_preference_vector from ACE-ranked facts (polarity-aware).
+  3. Blended query vector = (1-α)·cart_vec + α·pref_vec.
+  4. KNN against OpenSearch `product-catalog` collection (k=COMPLEMENT_KNN_K).
+  5. Hydrate top-K slugs from the storefront `products` table; drop out-of-
+     stock; cap at COMPLEMENT_TOP_CANDIDATES.
+  6. Pass the enriched candidates to Claude → ranked JSON of complements.
 
-Mock-mode behavior: MockBedrockClient.generate returns a stub starting
-with "[mock]". We detect that and fall back to a simple heuristic
-(top-N from a different category than cart items) so the demo still
-produces sensible-looking output.
+Why two catalogs touch this path: cart_items are received in the legacy
+lean-catalog namespace, but the OpenSearch product-catalog index is sourced
+from the storefront `products` table (slug-keyed, much richer schema —
+description, personalizationTags, inventoryStatus, etc.). Cart-vs-candidate
+namespace overlap is left to the prompt instruction ("do not recommend items
+already in the cart") rather than a set-difference, since the two id spaces
+are not aligned.
 
-Why per-cart (not per-item): one Bedrock call instead of N, and Claude
-can reason about bundles ("user is building a gaming setup → suggest
-gaming keyboard") that per-item can't see.
+Mock-mode: detects "[mock]" prefix on the LLM response and falls back to
+"top-N from candidates" since they're already KNN-ranked.
 """
 
 import json
@@ -26,7 +31,15 @@ import logging
 import re
 
 from shared.bedrock import BedrockClientProtocol
+from shared.constants import (
+    COLLECTION_PRODUCTS,
+    COMPLEMENT_KNN_K,
+    COMPLEMENT_PREF_WEIGHT,
+    COMPLEMENT_TOP_CANDIDATES,
+)
 from shared.dynamo import DynamoClient
+from shared.preference_vector import build_preference_vector
+from shared.vector_store import VectorStoreProtocol
 
 log = logging.getLogger(__name__)
 
@@ -35,23 +48,66 @@ _SYSTEM = (
     "You suggest COMPLEMENTARY products — items typically bought TOGETHER "
     "with the cart contents, not similar to them. A laptop and a laptop "
     "bag are complements. A laptop and a tablet are not (those are "
-    "substitutes).\n\n"
+    "substitutes). Never recommend something already in the cart.\n\n"
+    "For each pick, also write a personalization_reason in 2nd person "
+    '("Because you ...") that cites a specific Customer-prefers fact when '
+    'one applies. Use null when no fact justifies a personal tie. Keep it '
+    "under 90 characters. Reference the matching fact id (e.g. F2) in "
+    "fact_ref, or null if none.\n\n"
     "Output JSON only, no prose. Schema:\n"
-    '{"recommendations": [{"product_id": "<id>", "reason": "<one short '
-    'sentence>", "rank": <1-5>}, ...]}'
+    '{"recommendations": [{"product_id": "<slug>", "reason": "<one short '
+    'sentence>", "personalization_reason": "<2nd-person sentence or null>", '
+    '"fact_ref": "<F1|F2|...|null>", "rank": <1-5>}, ...]}'
 )
 
 
-def _format_product(p: dict) -> str:
-    return (
-        f"  {p['product_id']:36} {p.get('name', '?')[:38]:38} "
-        f"{p.get('subcategory', '?')[:14]:14} ${p.get('price', '?')}"
-    )
+def _is_in_stock(product: dict) -> bool:
+    """Storefront products carry `inventoryStatus`. Treat anything not
+    explicitly out-of-stock as available — older rows may lack the field."""
+    status = (product.get("inventoryStatus") or "").lower()
+    return status not in {"out_of_stock", "sold_out", "unavailable"}
+
+
+def _blend_vectors(
+    cart_vec: list[float],
+    pref_vec: list[float] | None,
+    alpha: float,
+) -> list[float]:
+    if pref_vec is None or alpha <= 0:
+        return cart_vec
+    if alpha >= 1:
+        return pref_vec
+    return [(1.0 - alpha) * c + alpha * p for c, p in zip(cart_vec, pref_vec)]
+
+
+def _format_candidate(p: dict) -> str:
+    bits = [
+        f"id={p.get('slug') or p.get('id', '?')}",
+        f"name={(p.get('name') or '?')[:60]}",
+    ]
+    if p.get("brand"):
+        bits.append(f"brand={p['brand']}")
+    if p.get("category"):
+        bits.append(f"cat={p['category']}")
+    if p.get("vertical"):
+        bits.append(f"vert={p['vertical']}")
+    bits.append(f"${p.get('price', '?')}")
+    tags = p.get("tags") or []
+    if tags:
+        bits.append(f"tags={','.join(str(t) for t in tags[:5])}")
+    ptags = p.get("personalizationTags") or []
+    if ptags:
+        bits.append(f"persona={','.join(str(t) for t in ptags[:5])}")
+    desc = (p.get("description") or "")[:100]
+    if desc:
+        bits.append(f"desc={desc}")
+    return "  - " + " | ".join(bits)
 
 
 def _format_cart(cart_products: list[dict]) -> str:
+    """Cart products come from the lean catalog → use category/subcategory."""
     return "\n".join(
-        f"  - {p['name']} (${p.get('price', '?')}, "
+        f"  - {p.get('name', '?')} (${p.get('price', '?')}, "
         f"{p.get('category', '?')}/{p.get('subcategory', '?')})"
         for p in cart_products
     )
@@ -60,30 +116,43 @@ def _format_cart(cart_products: list[dict]) -> str:
 def _build_prompt(
     cart_products: list[dict],
     candidates: list[dict],
-    customer_facts: list[str],
+    ranked_facts: list[dict],
     limit: int,
 ) -> str:
     cart_block = _format_cart(cart_products)
-    candidate_block = "\n".join(_format_product(p) for p in candidates)
+    candidate_block = "\n".join(_format_candidate(p) for p in candidates)
 
-    facts_block = (
-        "\n".join(f"  - {f}" for f in customer_facts)
-        if customer_facts else "  (no preferences on file)"
+    prefers = [f for f in ranked_facts if (f.get("polarity") or 0) >= 0]
+    avoids = [f for f in ranked_facts if (f.get("polarity") or 0) < 0]
+
+    # Number facts (F1, F2, ...) so Claude can cite them via fact_ref.
+    prefers_block = (
+        "\n".join(
+            f"  F{i+1}: {f.get('text', '')}" for i, f in enumerate(prefers)
+        )
+        if prefers else "  (none on file)"
+    )
+    avoids_block = (
+        "\n".join(f"  - {f.get('text', '')}" for f in avoids)
+        if avoids else "  (none on file)"
     )
 
     return (
-        f"Cart contents:\n{cart_block}\n\n"
-        f"Customer preferences:\n{facts_block}\n\n"
+        f"Cart contents (do NOT recommend any of these):\n{cart_block}\n\n"
+        f"Customer prefers:\n{prefers_block}\n\n"
+        f"Customer avoids:\n{avoids_block}\n\n"
         f"Available products (pick complements from this list ONLY):\n"
         f"{candidate_block}\n\n"
         f"Pick {limit} complementary products ranked by relevance. "
-        f"Briefly justify each pick in one sentence."
+        f"For each, write a one-sentence reason explaining the pairing, plus "
+        f"a personalization_reason in 2nd person citing a Prefers fact when "
+        f"applicable (or null), plus a fact_ref like F1/F2 or null."
     )
 
 
 def _parse_json(generated: str) -> list[dict]:
     """Extract the recommendations array from Claude's response. Returns []
-    if parsing fails — caller should treat that as a signal to fall back."""
+    if parsing fails — caller treats that as a signal to fall back."""
     match = re.search(r"\{.*\}", generated, re.DOTALL)
     if not match:
         return []
@@ -99,41 +168,133 @@ def _looks_like_mock(text: str) -> bool:
     return text.strip().startswith("[mock]")
 
 
+def _match_fact_to_product(
+    product: dict,
+    prefers_facts: list[dict],
+) -> tuple[str | None, str | None]:
+    """Best-effort fact-to-product match for the heuristic / fallback.
+    Returns (personalization_reason, fact_ref) or (None, None) if no match.
+
+    Match logic: a Prefers fact "matches" a product if the fact's lowercased
+    text contains the product's brand, category, vertical, or any
+    personalizationTag/tag as a substring. Picks the first hit in fact rank
+    order — Prefers is already ACE-sorted by combined_score.
+    """
+    if not prefers_facts:
+        return None, None
+
+    haystacks = [
+        product.get("brand"),
+        product.get("category"),
+        product.get("vertical"),
+        *(product.get("personalizationTags") or []),
+        *(product.get("tags") or []),
+    ]
+    needles = [str(h).lower() for h in haystacks if h]
+    if not needles:
+        return None, None
+
+    for i, fact in enumerate(prefers_facts):
+        text = (fact.get("text") or "").lower()
+        if not text:
+            continue
+        if any(n in text for n in needles):
+            reason = f"Because you {fact.get('text', '').strip()}"
+            return reason[:90], f"F{i+1}"
+    return None, None
+
+
 def _heuristic_fallback(
-    cart_products: list[dict],
     candidates: list[dict],
+    ranked_facts: list[dict],
     limit: int,
 ) -> list[dict]:
-    """Mock-mode fallback: pick from subcategories NOT in the cart. Gives the
-    demo a sensible-looking output without real LLM reasoning.
-    """
-    cart_subcats = {p.get("subcategory") for p in cart_products}
-    other = [c for c in candidates if c.get("subcategory") not in cart_subcats]
-    picks = other[:limit] if len(other) >= limit else (other + candidates)[:limit]
-    return [
-        {
-            "product_id": p["product_id"],
-            "reason": f"common complement for {cart_products[0].get('subcategory', 'cart')} purchases",
-            "rank": i + 1,
-        }
-        for i, p in enumerate(picks)
+    """Mock-mode / parse-failure fallback: take top N from the KNN-ranked
+    candidate list. Candidates are already similarity-sorted, so this is a
+    sensible default. Personalization reasons are derived heuristically from
+    fact-text ↔ product-attribute overlap."""
+    prefers_facts = [
+        f for f in ranked_facts if (f.get("polarity") or 0) >= 0 and f.get("text")
     ]
+    out: list[dict] = []
+    for i, p in enumerate(candidates[:limit]):
+        personalization_reason, fact_ref = _match_fact_to_product(p, prefers_facts)
+        out.append({
+            "product_id": p.get("slug") or p.get("id"),
+            "reason": "common complement based on similarity",
+            "personalization_reason": personalization_reason,
+            "fact_ref": fact_ref,
+            "rank": i + 1,
+        })
+    return out
+
+
+def _personalized_candidate_search(
+    cart_vec: list[float],
+    ranked_facts: list[dict],
+    vectors: VectorStoreProtocol,
+    bedrock: BedrockClientProtocol,
+    k: int = COMPLEMENT_KNN_K,
+) -> list[dict]:
+    """Build blended query vec, run KNN against OpenSearch product-catalog.
+    Returns the raw KNN hits (slug + lightweight metadata + similarity)."""
+    pref_vec = build_preference_vector(ranked_facts, bedrock)
+    query_vec = _blend_vectors(cart_vec, pref_vec, COMPLEMENT_PREF_WEIGHT)
+    return vectors.search(COLLECTION_PRODUCTS, query_vec, k=k)
+
+
+def _hydrate_and_filter(
+    knn_hits: list[dict],
+    dynamo: DynamoClient,
+    top_n: int = COMPLEMENT_TOP_CANDIDATES,
+) -> list[dict]:
+    """Hydrate KNN hits from storefront `products` and drop out-of-stock.
+    Preserves KNN order through the hydration step."""
+    candidate_slugs: list[str] = []
+    seen: set[str] = set()
+    for hit in knn_hits:
+        slug = hit.get("id") or hit.get("slug")
+        if not slug or slug in seen:
+            continue
+        seen.add(slug)
+        candidate_slugs.append(slug)
+
+    if not candidate_slugs:
+        return []
+
+    fetched = dynamo.batch_get_products(candidate_slugs)
+    by_slug = {(p.get("slug") or p.get("id")): p for p in fetched}
+
+    filtered: list[dict] = []
+    for slug in candidate_slugs:
+        p = by_slug.get(slug)
+        if not p:
+            continue  # OS hit had no DDB row — index drift; skip silently
+        if not _is_in_stock(p):
+            continue
+        filtered.append(p)
+        if len(filtered) >= top_n:
+            break
+
+    return filtered
 
 
 def generate_complement_recommendation(
     customer_id: str,
     cart_item_ids: list[str],
+    cart_vec: list[float],
+    ranked_facts: list[dict],
     bedrock: BedrockClientProtocol,
     dynamo: DynamoClient,
-    customer_facts: list[str] | None = None,
+    vectors: VectorStoreProtocol,
     limit: int = 5,
 ) -> dict:
-    """Returns {recommendations: [...], cart_items: [...], used_llm: bool,
-    cart_resolved: int, candidates_considered: int}."""
-    customer_facts = customer_facts or []
-
-    # 1. Resolve cart items
-    cart_products = dynamo.batch_get_recommender_products(cart_item_ids) if cart_item_ids else []
+    """Returns {recommendations, cart_items, used_llm, cart_resolved,
+    candidates_considered}."""
+    # 1. Resolve cart from lean catalog (unchanged contract).
+    cart_products = (
+        dynamo.batch_get_recommender_products(cart_item_ids) if cart_item_ids else []
+    )
     if not cart_products:
         return {
             "recommendations": [],
@@ -143,13 +304,28 @@ def generate_complement_recommendation(
             "candidates_considered": 0,
         }
 
-    # 2. Candidate pool — full catalog minus cart items (small-catalog assumption)
-    cart_id_set = {p["product_id"] for p in cart_products}
-    catalog = dynamo.scan_recommender_products()
-    candidates = [c for c in catalog if c["product_id"] not in cart_id_set]
+    # 2 + 3. Personalized KNN against storefront product-catalog.
+    knn_hits = _personalized_candidate_search(
+        cart_vec=cart_vec,
+        ranked_facts=ranked_facts,
+        vectors=vectors,
+        bedrock=bedrock,
+    )
 
-    # 3. Ask Claude
-    prompt = _build_prompt(cart_products, candidates, customer_facts, limit)
+    # 4. Hydrate candidates from storefront `products` + filter.
+    candidates = _hydrate_and_filter(knn_hits=knn_hits, dynamo=dynamo)
+
+    if not candidates:
+        return {
+            "recommendations": [],
+            "cart_items": [p.get("product_id") for p in cart_products],
+            "used_llm": False,
+            "cart_resolved": len(cart_products),
+            "candidates_considered": 0,
+        }
+
+    # 5. Ask Claude.
+    prompt = _build_prompt(cart_products, candidates, ranked_facts, limit)
     raw = bedrock.generate(prompt=prompt, system=_SYSTEM, max_tokens=600)
 
     parsed: list[dict] = []
@@ -159,23 +335,42 @@ def generate_complement_recommendation(
         used_llm = bool(parsed)
 
     if not parsed:
-        parsed = _heuristic_fallback(cart_products, candidates, limit)
+        parsed = _heuristic_fallback(candidates, ranked_facts, limit)
 
-    # 4. Hydrate result with full product details
-    cand_by_id = {c["product_id"]: c for c in candidates}
+    # 6. Hydrate result with full product details.
+    cand_by_slug = {(c.get("slug") or c.get("id")): c for c in candidates}
     recommendations: list[dict] = []
     for r in parsed[:limit]:
         pid = r.get("product_id")
-        product = cand_by_id.get(pid)
+        product = cand_by_slug.get(pid)
         if not product:
-            continue  # Claude hallucinated a product_id not in the catalog
+            continue  # Claude hallucinated a slug not in the candidate set
+
+        # personalization_reason: take Claude's value if present, else heuristic
+        # match against ranked_facts. Always carried through (None when no
+        # personal tie applies).
+        pr = r.get("personalization_reason")
+        if pr is None or (isinstance(pr, str) and not pr.strip()):
+            prefers = [
+                f for f in ranked_facts
+                if (f.get("polarity") or 0) >= 0 and f.get("text")
+            ]
+            pr, fact_ref = _match_fact_to_product(product, prefers)
+        else:
+            pr = pr.strip()[:90]
+            fact_ref = r.get("fact_ref")
+            if fact_ref is not None and not isinstance(fact_ref, str):
+                fact_ref = None
+
         recommendations.append({
             "product_id": pid,
             "name": product.get("name", ""),
             "category": product.get("category", ""),
-            "subcategory": product.get("subcategory", ""),
-            "price": float(product.get("price", 0)),
-            "reason": r.get("reason", "")[:200],
+            "vertical": product.get("vertical", ""),
+            "price": float(product.get("price", 0) or 0),
+            "reason": (r.get("reason") or "")[:200],
+            "personalization_reason": pr,
+            "fact_ref": fact_ref,
             "rank": r.get("rank", len(recommendations) + 1),
         })
 
@@ -185,7 +380,7 @@ def generate_complement_recommendation(
     )
     return {
         "recommendations": recommendations,
-        "cart_items": [p["product_id"] for p in cart_products],
+        "cart_items": [p.get("product_id") for p in cart_products],
         "used_llm": used_llm,
         "cart_resolved": len(cart_products),
         "candidates_considered": len(candidates),
