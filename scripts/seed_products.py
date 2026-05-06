@@ -57,7 +57,7 @@ def main() -> None:
     bedrock = make_bedrock_client(
         mode=os.getenv("BEDROCK_MODE", "mock"),
         region=os.getenv("BEDROCK_REGION", "us-east-1"),
-        text_model=os.getenv("BEDROCK_TEXT_MODEL", "amazon.titan-embed-text-v2:0"),
+        text_model=os.getenv("BEDROCK_TEXT_MODEL", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
         embed_model=os.getenv("BEDROCK_EMBED_MODEL", "amazon.titan-embed-text-v2:0"),
     )
     vectors = make_vector_store(

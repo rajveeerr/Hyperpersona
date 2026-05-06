@@ -75,7 +75,7 @@ def _section(title: str) -> None:
 
 
 def main() -> None:
-    dynamodb = boto3.resource("dynamodb", endpoint_url=DDB_ENDPOINT, region_name=REGION)
+    dynamodb = boto3.resource("dynamodb", endpoint_url=(DDB_ENDPOINT or None), region_name=REGION)
     os_client = OpenSearch(
         hosts=[{"host": OS_HOST, "port": OS_PORT}],
         use_ssl=False,

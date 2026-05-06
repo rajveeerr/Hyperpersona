@@ -19,10 +19,11 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from shared.queue import pop_result_async, push_job
+from shared.queue import pop_result_async
 from shared.schemas import Job
 
 from ..deps import dynamo as _dynamo
+from ..deps import job_queue as _queue
 from ..deps import redis_async as _redis_async
 from ..deps import redis_client as _redis
 from ..middleware.auth import current_customer_id
@@ -32,7 +33,10 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 CACHE_TTL_SECONDS = 300
-RESULT_TIMEOUT_SECONDS = 30
+# 60s budget covers Opus-recommender (~10-15s) + Opus-verifier (~10-15s)
+# + Strands orchestrator overhead (~3 model_call rounds × ~3s = 9s).
+# Sonnet-only setups complete in ~15-20s but the headroom is harmless.
+RESULT_TIMEOUT_SECONDS = 60
 
 
 def _cache_key(customer_id: str, context: str) -> str:
@@ -59,7 +63,7 @@ async def recommend(
         payload={"customer_id": customer_id, "context": context},
     )
     _dynamo.put_job(job.model_dump())
-    push_job(_redis, job.model_dump_json())
+    _queue.push_one(job.model_dump_json())
 
     # Long wait — async so the event loop stays free for other requests.
     payload = await pop_result_async(

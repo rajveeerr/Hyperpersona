@@ -12,7 +12,7 @@ import sys
 
 import boto3
 
-ENDPOINT = os.getenv("DYNAMODB_ENDPOINT", "http://localhost:8001")
+ENDPOINT = os.getenv("DYNAMODB_ENDPOINT", "").strip() or None
 REGION = os.getenv("AWS_REGION", "us-east-1")
 
 

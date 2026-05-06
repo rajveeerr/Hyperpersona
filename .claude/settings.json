@@ -23,10 +23,29 @@
       "Bash(python -m py_compile /c/cognizant-hack/scripts/demo_scale.py)",
       "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T server python /app/scripts/demo_scale.py)",
       "Bash(python -m py_compile /c/cognizant-hack/server/src/deps.py /c/cognizant-hack/shared/queue.py /c/cognizant-hack/server/src/routes/recommend.py /c/cognizant-hack/scripts/demo_async_recommend.py)",
-      "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T server python /app/scripts/demo_async_recommend.py)"
+      "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T server python /app/scripts/demo_async_recommend.py)",
+      "Bash(python -m py_compile /c/cognizant-hack/server/src/config.py /c/cognizant-hack/server/src/main.py /c/cognizant-hack/server/src/middleware/rate_limit.py /c/cognizant-hack/server/src/middleware/auth.py /c/cognizant-hack/server/src/routes/consent.py /c/cognizant-hack/server/src/routes/customer.py /c/cognizant-hack/server/src/routes/events.py /c/cognizant-hack/server/src/routes/recommend.py /c/cognizant-hack/server/src/routes/auth.py /c/cognizant-hack/server/src/routes/jobs.py /c/cognizant-hack/server/src/routes/metrics.py /c/cognizant-hack/server/src/routes/traces.py /c/cognizant-hack/server/src/deps.py /c/cognizant-hack/server/src/auth.py /c/cognizant-hack/shared/dynamo.py /c/cognizant-hack/shared/schemas.py /c/cognizant-hack/shared/constants.py)",
+      "Bash(git -C /c/cognizant-hack status)",
+      "Bash(git -C /c/cognizant-hack log --oneline HEAD ^MERGE_HEAD)",
+      "Bash(git -C /c/cognizant-hack log --oneline MERGE_HEAD ^HEAD)",
+      "Bash(git -C /c/cognizant-hack diff --stat .claude/settings.json server/src/middleware/rate_limit.py)",
+      "Bash(git -C /c/cognizant-hack add docker-compose.yml server/src/config.py server/src/main.py server/src/routes/consent.py server/src/routes/customer.py server/src/routes/events.py server/src/routes/recommend.py server/src/middleware/rate_limit.py)",
+      "Bash(git -C /c/cognizant-hack status -s)",
+      "Bash(git -C /c/cognizant-hack commit -m ' *)",
+      "Bash(git -C /c/cognizant-hack push origin main)",
+      "Bash(git -C /c/cognizant-hack log origin/main --oneline -3)",
+      "Bash(git -C /c/cognizant-hack status -sb)",
+      "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T server python /app/scripts/setup_dynamodb.py)",
+      "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T server python /app/scripts/seed_products.py)",
+      "Bash(python -m py_compile /c/cognizant-hack/worker/src/agents/tools/complement_tool.py /c/cognizant-hack/worker/src/handlers/generate_complement_recommendation.py /c/cognizant-hack/worker/src/job_handler.py /c/cognizant-hack/server/src/routes/complement.py /c/cognizant-hack/server/src/main.py /c/cognizant-hack/scripts/demo_complement.py)",
+      "Bash(MSYS_NO_PATHCONV=1 docker compose exec -T server python /app/scripts/demo_complement.py)",
+      "Bash(git -C /c/cognizant-hack add Makefile scripts/setup_dynamodb.py scripts/demo_complement.py scripts/seed_products.py server/src/main.py server/src/routes/complement.py shared/constants.py shared/dynamo.py shared/schemas.py worker/src/agents/tools/complement_tool.py worker/src/handlers/generate_complement_recommendation.py worker/src/job_handler.py)",
+      "Bash(pip show *)",
+      "Bash(git config *)"
     ],
     "additionalDirectories": [
-      "C:\\cognizant-hack"
+      "C:\\cognizant-hack",
+      "C:\\Users\\divya\\.ssh"
     ]
   }
 }

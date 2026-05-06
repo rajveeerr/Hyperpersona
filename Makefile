@@ -1,4 +1,4 @@
-.PHONY: up down logs build server worker restart-worker setup-db setup-opensearch seed-consent seed-products scan-events scan-jobs scan-consent scan-vectors peek-queue test-bedrock test-tools test-recommend test-privacy test-e2e demo-conflict demo-tiered demo-backpressure demo-scale demo-async-recommend demo-complement scale worker-count show-trace clean ps
+.PHONY: up down logs build server worker restart-worker setup-db setup-opensearch setup-aoss setup-s3 setup-sqs seed-consent seed-products scan-events scan-jobs scan-consent scan-vectors peek-queue test-bedrock verify-bedrock test-tools test-recommend test-privacy test-e2e demo-conflict demo-tiered demo-backpressure demo-scale demo-async-recommend demo-complement scale worker-count show-trace clean ps
 
 up:
 	docker compose up -d --build
@@ -26,9 +26,27 @@ restart-worker:
 setup-db:
 	docker compose exec server python /app/scripts/setup_dynamodb.py
 
-# Phase 7 — OpenSearch indexes and vector inspection
+# Phase 7 — OpenSearch indexes (LOCAL Docker container) and vector inspection
 setup-opensearch:
 	docker compose exec worker python /app/scripts/setup_opensearch.py
+
+# Provision AWS OpenSearch Serverless (encryption + network + data access
+# policies, collection, 4 indexes). Idempotent — safe to re-run. Run before
+# flipping VECTOR_MODE=aoss.
+setup-aoss:
+	docker compose exec worker python /app/scripts/setup_aoss.py
+
+# Phase 9 — Idempotently create the S3 trace-sync bucket. Reads
+# S3_TRACES_BUCKET and AWS_REGION from env. Run once before flipping
+# TRACE_SYNC_MODE=s3.
+setup-s3:
+	docker compose exec worker python /app/scripts/setup_s3.py
+
+# Idempotently create the SQS job queue. Reads SQS_QUEUE_NAME (default
+# hyperpersona-jobs) + AWS_REGION. Prints the queue URL — copy into .env
+# as SQS_QUEUE_URL, then flip QUEUE_MODE=sqs and `make down && make up`.
+setup-sqs:
+	docker compose exec worker python /app/scripts/setup_sqs.py
 
 # Ecommerce M1 — seed products + categories into Dynamo and embed into product-catalog
 # Runs in the server container (it imports server-side schema/writer modules).
@@ -82,13 +100,20 @@ peek-queue:
 test-bedrock:
 	docker compose exec worker python /app/scripts/test_bedrock.py
 
+# Verify real Bedrock is live in BOTH containers (worker AND server). Runs
+# the exact same embed+generate against each container's factory and
+# confirms the singleton type is BedrockClient (not MockBedrockClient).
+# Re-run this any time you refresh Workshop Studio temp creds.
+verify-bedrock:
+	@echo "=== WORKER ==="
+	@docker compose exec worker python /app/scripts/verify_bedrock.py
+	@echo
+	@echo "=== SERVER ==="
+	@docker compose exec server python /app/scripts/verify_bedrock.py
+
 # Phase 5 — Seed test consent records and run all four agent tools
 seed-consent:
 	docker compose exec worker python /app/scripts/seed_consent.py
-
-# Step 7 — Seed the product_catalog table with the starter 40-item catalog.
-seed-products:
-	docker compose exec server python /app/scripts/seed_products.py
 
 test-tools:
 	docker compose exec worker python /app/scripts/test_tools.py

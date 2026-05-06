@@ -20,6 +20,88 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 
+class _StrandsTraceHook:
+    """Bridges Strands lifecycle events into TraceLogger rows.
+
+    Registered against the Agent via `hooks=[tracer.make_strands_hook(job_id)]`.
+    One instance per agent invocation so the job_id stays scoped.
+
+    We emit one row per tool call (with elapsed time and ok/error status)
+    and one row per model call. Schema matches ManualSupervisor's _step
+    output so `make show-trace` is mode-agnostic.
+    """
+
+    def __init__(self, tracer: "TraceLogger", job_id: str) -> None:
+        self.tracer = tracer
+        self.job_id = job_id
+        self._tool_starts: dict[str, float] = {}
+        self._model_start: float | None = None
+
+    def register_hooks(self, registry, **_kwargs) -> None:
+        # Imported lazily — only StrandsSupervisor needs strands installed.
+        import time as _t  # noqa: F401  (used by inner closures)
+        from strands.hooks.events import (
+            AfterModelCallEvent,
+            AfterToolCallEvent,
+            BeforeModelCallEvent,
+            BeforeToolCallEvent,
+        )
+        registry.add_callback(BeforeToolCallEvent, self._on_before_tool)
+        registry.add_callback(AfterToolCallEvent, self._on_after_tool)
+        registry.add_callback(BeforeModelCallEvent, self._on_before_model)
+        registry.add_callback(AfterModelCallEvent, self._on_after_model)
+
+    def _on_before_tool(self, event) -> None:
+        import time
+        tu = event.tool_use
+        self._tool_starts[tu.get("toolUseId", "")] = time.time()
+
+    def _on_after_tool(self, event) -> None:
+        import time
+        tu = event.tool_use
+        tool_use_id = tu.get("toolUseId", "")
+        start = self._tool_starts.pop(tool_use_id, time.time())
+        duration_ms = (time.time() - start) * 1000
+
+        if event.exception is not None:
+            status = "error"
+            output = {"error": f"{type(event.exception).__name__}: {event.exception}"}
+        else:
+            status = "ok"
+            # ToolResult is a dict with status + content blocks; serialize defensively.
+            output = event.result if isinstance(event.result, dict) else {"result": str(event.result)}
+
+        self.tracer.log(
+            self.job_id,
+            tu.get("name", "tool"),
+            "tool_call",
+            tu.get("input", {}),
+            output,
+            duration_ms,
+            status,
+        )
+
+    def _on_before_model(self, _event) -> None:
+        import time
+        self._model_start = time.time()
+
+    def _on_after_model(self, _event) -> None:
+        import time
+        if self._model_start is None:
+            return
+        duration_ms = (time.time() - self._model_start) * 1000
+        self._model_start = None
+        self.tracer.log(
+            self.job_id,
+            "model",
+            "model_call",
+            {},
+            {},
+            duration_ms,
+            "ok",
+        )
+
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS traces (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,6 +155,11 @@ class TraceLogger:
         with self._lock:
             conn = sqlite3.connect(self.db_path)
             try:
+                # Self-heal: schema CREATE is IF NOT EXISTS, so this is a
+                # no-op when the file is intact and re-creates the table
+                # if the file got wiped (e.g. AgentCore microVM cycle, or
+                # a manual rm). Cheap (microseconds), bulletproof.
+                conn.executescript(_SCHEMA)
                 conn.execute(
                     "INSERT INTO traces "
                     "(job_id, agent_name, step, input, output, duration_ms, timestamp, status) "
@@ -91,6 +178,13 @@ class TraceLogger:
                 conn.commit()
             finally:
                 conn.close()
+
+    def make_strands_hook(self, job_id: str):
+        """Return a Strands HookProvider that logs tool + model calls to this
+        TraceLogger under the given job_id, matching the row shape that
+        ManualSupervisor writes via _step().
+        """
+        return _StrandsTraceHook(self, job_id)
 
     def get_traces(self, job_id: str) -> list[dict]:
         """Read traces from this worker's file only. For cross-worker reads

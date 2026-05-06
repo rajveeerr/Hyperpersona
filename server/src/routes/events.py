@@ -21,7 +21,6 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 
 from shared.constants import QUEUE_PENDING
-from shared.queue import push_jobs
 from shared.schemas import (
     CustomerEvent,
     IngestBatchRequest,
@@ -33,6 +32,7 @@ from shared.schemas import (
 
 from ..config import settings
 from ..deps import dynamo as _dynamo
+from ..deps import job_queue as _queue
 from ..deps import redis_client as _redis
 from ..middleware.auth import current_customer_id
 
@@ -148,8 +148,21 @@ def _ingest_events(
 
     if accepted_events:
         _dynamo.batch_put_events(accepted_events)
-        _dynamo.batch_put_jobs(accepted_jobs)
-        push_jobs(_redis, accepted_payloads)
+        # Filter out jobs that already finished — re-enqueueing them would
+        # create duplicate work on the queue (matters more under SQS, since
+        # each duplicate is a real network message vs Redis LPUSH dups). DDB
+        # is the source of truth for "this job already ran".
+        jobs_to_enqueue = []
+        payloads_to_enqueue = []
+        for job, payload in zip(accepted_jobs, accepted_payloads):
+            existing = _dynamo.get_job(job["job_id"])
+            if existing and existing.get("status") in ("completed", "failed"):
+                continue
+            jobs_to_enqueue.append(job)
+            payloads_to_enqueue.append(payload)
+        if jobs_to_enqueue:
+            _dynamo.batch_put_jobs(jobs_to_enqueue)
+            _queue.push_many(payloads_to_enqueue)
 
     # Preserve original submission order; within-batch dups share the same result.
     final_results = [result_by_id[r.client_event_id] for r in reqs]

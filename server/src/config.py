@@ -26,11 +26,21 @@ class Settings(BaseSettings):
     # Bedrock — server uses embed() to vectorize search queries.
     bedrock_mode: str = "mock"
     bedrock_region: str = "us-east-1"
-    bedrock_text_model: str = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+    bedrock_text_model: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     bedrock_embed_model: str = "amazon.titan-embed-text-v2:0"
 
     # Vector store — same modes the worker uses.
     vector_mode: str = "opensearch"
+    aoss_endpoint: str = ""
+
+    # Trace sync — server only reads. When trace_sync_mode == "s3" and the
+    # local glob comes back empty, /traces falls back to S3.
+    trace_sync_mode: str = "local"
+    s3_traces_bucket: str = ""
+
+    # Job queue backend — same toggle as worker.
+    queue_mode: str = "redis"
+    sqs_queue_url: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

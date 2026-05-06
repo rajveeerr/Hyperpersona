@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(aws *)"
+      "Bash(aws *)",
+      "Bash(MSYS_NO_PATHCONV=1 docker compose exec *)",
+      "Bash(MSYS_NO_PATHCONV=1 make verify-bedrock *)",
+      "Bash(MSYS_NO_PATHCONV=1 make setup-s3)",
+      "WebFetch(domain:aws.github.io)",
+      "Bash(MSYS_NO_PATHCONV=1 make test-privacy)",
+      "Bash(cp /c/cognizant-hack/.env.realaws.backup /c/cognizant-hack/.env)",
+      "Bash(rm /c/cognizant-hack/.env.realaws.backup)",
+      "Bash(docker cp *)",
+      "Bash(MSYS_NO_PATHCONV=1 make setup-sqs)",
+      "Bash(MSYS_NO_PATHCONV=1 make setup-db)",
+      "Bash(MSYS_NO_PATHCONV=1 make setup-aoss)"
     ]
   },
   "enabledMcpjsonServers": [

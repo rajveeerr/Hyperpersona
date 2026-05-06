@@ -42,6 +42,35 @@ def _build_prompt(
     )
 
 
+def make_recommender_tool(
+    bedrock: BedrockClientProtocol,
+    vectors: VectorStoreProtocol,
+):
+    """Return a Strands @tool that closes over bedrock + vectors deps."""
+    from strands import tool
+
+    @tool
+    def generate_recommendation_tool(customer_id: str, context: str) -> dict:
+        """Generate a personalized offer based on stored facts and behavior.
+
+        Retrieves customer facts + recent behavior + session summaries from
+        vector memory, ACE-ranks the facts (recency, polarity, conflict
+        detection), and asks Claude to write a one-sentence offer grounded
+        only in that retrieved data.
+
+        Args:
+            customer_id: the customer to generate a recommendation for
+            context: the situation/intent (e.g., "looking for outdoor gear")
+
+        Returns:
+            dict with 'offer' (str), 'facts_used', 'behaviors_used',
+            'conflicts'.
+        """
+        return generate_recommendation(customer_id, context, bedrock, vectors)
+
+    return generate_recommendation_tool
+
+
 def generate_recommendation(
     customer_id: str,
     context: str,

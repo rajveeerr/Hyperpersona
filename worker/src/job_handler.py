@@ -5,11 +5,17 @@ to MAX_ATTEMPTS times with the delays in RETRY_DELAYS. Final failure
 marks the job failed in DynamoDB with the last error.
 
 ctx is a dict of shared singletons (dynamo, bedrock, vectors, tracer,
-supervisor, redis) constructed once in main.py and passed to every handler.
+supervisor, redis, trace_sync) constructed once in main.py and passed
+to every handler.
+
+After a successful job, traces are synced via ctx["trace_sync"] in a
+background thread. Local SQLite is the source of truth; S3 is best-effort
+for cross-restart durability and the AgentCore microVM scenario.
 """
 
 import json
 import logging
+import threading
 import time
 
 from shared.schemas import utc_now_iso
@@ -70,6 +76,7 @@ def dispatch(payload: str, ctx: dict) -> None:
                 "completed",
                 extra={"job_id": job_id, "attempts": attempt},
             )
+            _trigger_trace_sync(ctx, job_id)
             return
         except Exception as e:  # noqa: BLE001 — handler errors are caught here
             last_error = e
@@ -96,3 +103,24 @@ def dispatch(payload: str, ctx: dict) -> None:
         completed_at=utc_now_iso(),
         error=err,
     )
+    # Failed jobs still get their traces synced — error rows are useful
+    # for post-mortem.
+    _trigger_trace_sync(ctx, job_id)
+
+
+def _trigger_trace_sync(ctx: dict, job_id: str) -> None:
+    """Fire trace_sync.sync in a daemon thread so the worker loop never
+    blocks on a 100-300ms S3 PUT. NoopTraceSync returns immediately.
+    """
+    trace_sync = ctx.get("trace_sync")
+    tracer = ctx.get("tracer")
+    if trace_sync is None or tracer is None:
+        return
+
+    def _bg() -> None:
+        try:
+            trace_sync.sync(tracer.db_path, job_id)
+        except Exception:
+            log.exception("trace sync failed", extra={"job_id": job_id})
+
+    threading.Thread(target=_bg, daemon=True, name=f"trace-sync-{job_id[:8]}").start()

@@ -19,7 +19,6 @@ from shared.constants import (
     EVENT_STATUS_PROCESSED,
     HIGH_SIGNAL_EVENT_TYPES,
 )
-from shared.queue import push_job
 from shared.schemas import Job
 
 log = logging.getLogger(__name__)
@@ -99,7 +98,7 @@ def _handle_low_signal(job: dict, ctx: dict, event: dict, redis_client, settings
             payload={"customer_id": customer_id},
         )
         dynamo.put_job(summary_job.model_dump())
-        push_job(redis_client, summary_job.model_dump_json())
+        ctx["queue"].push_one(summary_job.model_dump_json())
         log.info(
             "summarize_session enqueued",
             extra={"customer_id": customer_id, "counter_at_trigger": new_count},

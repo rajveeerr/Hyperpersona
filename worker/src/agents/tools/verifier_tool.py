@@ -19,6 +19,29 @@ _SYSTEM = (
 )
 
 
+def make_verifier_tool(bedrock: BedrockClientProtocol):
+    """Return a Strands @tool that closes over the bedrock dependency."""
+    from strands import tool
+
+    @tool
+    def verify_recommendation_tool(draft_offer: str, source_context: str) -> dict:
+        """Fact-check a draft offer against the source data.
+
+        If the draft accurately reflects the source, returns status='valid'.
+        Otherwise returns status='corrected' with a rewritten offer.
+
+        Args:
+            draft_offer: the recommendation text to verify
+            source_context: the source data the recommendation should ground in
+
+        Returns:
+            dict with 'status' ('valid'|'corrected') and 'final_offer' (str).
+        """
+        return verify_recommendation(draft_offer, source_context, bedrock)
+
+    return verify_recommendation_tool
+
+
 def verify_recommendation(
     draft_offer: str,
     source_context: str,

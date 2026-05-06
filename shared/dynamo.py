@@ -49,9 +49,11 @@ _coerce_floats = _decimalize
 
 class DynamoClient:
     def __init__(self, endpoint: str, region: str = "us-east-1"):
+        # Empty string → use AWS's default endpoint (real DynamoDB).
+        # Non-empty → DynamoDB Local at that URL.
         self.resource = boto3.resource(
             "dynamodb",
-            endpoint_url=endpoint,
+            endpoint_url=endpoint or None,
             region_name=region,
         )
 

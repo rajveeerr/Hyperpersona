@@ -20,7 +20,7 @@ import redis.asyncio as aioredis
 
 from shared.bedrock import make_bedrock_client
 from shared.dynamo import DynamoClient
-from shared.queue import make_redis
+from shared.queue import make_job_queue, make_redis
 from shared.vector_store import make_vector_store
 
 from .config import settings
@@ -36,10 +36,20 @@ redis_client = make_redis(settings.redis_url)
 # Async Redis for the /recommend BRPOP. Same Redis instance, just non-blocking.
 redis_async = aioredis.from_url(settings.redis_url, decode_responses=True)
 
+# Job queue (Redis or SQS). Per-job result channel still uses Redis.
+job_queue = make_job_queue(
+    mode=settings.queue_mode,
+    redis_client=redis_client,
+    sqs_queue_url=settings.sqs_queue_url,
+    region=settings.aws_region,
+)
+
 vectors = make_vector_store(
-    mode="opensearch",
+    mode=settings.vector_mode,
     host=settings.opensearch_host,
     port=settings.opensearch_port,
+    aoss_endpoint=settings.aoss_endpoint,
+    region=settings.aws_region,
 )
 
 # Bedrock — server uses embed() to vectorize search queries against the

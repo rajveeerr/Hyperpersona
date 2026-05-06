@@ -16,10 +16,15 @@ services:
       - traces:/app/traces
     environment:
       REDIS_URL: redis://redis:6379
-      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: local
-      AWS_SECRET_ACCESS_KEY: local
+      DYNAMODB_ENDPOINT: ${DYNAMODB_ENDPOINT-http://dynamodb-local:8000}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      TRACE_SYNC_MODE: ${TRACE_SYNC_MODE:-local}
+      S3_TRACES_BUCKET: ${S3_TRACES_BUCKET:-}
+      QUEUE_MODE: ${QUEUE_MODE:-redis}
+      SQS_QUEUE_URL: ${SQS_QUEUE_URL:-}
       API_KEY: ${API_KEY:-test-key}
       TRACES_DB_DIR: /app/traces
       MAX_QUEUE_DEPTH: ${MAX_QUEUE_DEPTH:-10000}
@@ -32,9 +37,14 @@ services:
       BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
       BEDROCK_TEXT_MODEL: ${BEDROCK_TEXT_MODEL:-anthropic.claude-sonnet-4-5-20250929-v1:0}
       BEDROCK_EMBED_MODEL: ${BEDROCK_EMBED_MODEL:-amazon.titan-embed-text-v2:0}
+      BEDROCK_ANALYZER_MODEL: ${BEDROCK_ANALYZER_MODEL:-}
+      BEDROCK_ORCHESTRATOR_MODEL: ${BEDROCK_ORCHESTRATOR_MODEL:-}
+      BEDROCK_RECOMMENDER_MODEL: ${BEDROCK_RECOMMENDER_MODEL:-}
+      BEDROCK_VERIFIER_MODEL: ${BEDROCK_VERIFIER_MODEL:-}
       VECTOR_MODE: ${VECTOR_MODE:-opensearch}
       OPENSEARCH_HOST: ${OPENSEARCH_HOST:-opensearch}
       OPENSEARCH_PORT: ${OPENSEARCH_PORT:-9200}
+      AOSS_ENDPOINT: ${AOSS_ENDPOINT:-}
     depends_on:
       - redis
       - dynamodb-local
@@ -62,20 +72,34 @@ services:
       - traces:/app/traces
     environment:
       REDIS_URL: redis://redis:6379
-      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      DYNAMODB_ENDPOINT: ${DYNAMODB_ENDPOINT-http://dynamodb-local:8000}
       TRACES_DB_DIR: /app/traces
-      AWS_REGION: us-east-1
+      AWS_REGION: ${AWS_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       BEDROCK_MODE: ${BEDROCK_MODE:-mock}
       BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
       BEDROCK_TEXT_MODEL: ${BEDROCK_TEXT_MODEL:-anthropic.claude-sonnet-4-5-20250929-v1:0}
       BEDROCK_EMBED_MODEL: ${BEDROCK_EMBED_MODEL:-amazon.titan-embed-text-v2:0}
+      BEDROCK_ANALYZER_MODEL: ${BEDROCK_ANALYZER_MODEL:-}
+      BEDROCK_ORCHESTRATOR_MODEL: ${BEDROCK_ORCHESTRATOR_MODEL:-}
+      BEDROCK_RECOMMENDER_MODEL: ${BEDROCK_RECOMMENDER_MODEL:-}
+      BEDROCK_VERIFIER_MODEL: ${BEDROCK_VERIFIER_MODEL:-}
       VECTOR_MODE: ${VECTOR_MODE:-opensearch}
       OPENSEARCH_HOST: ${OPENSEARCH_HOST:-opensearch}
       OPENSEARCH_PORT: ${OPENSEARCH_PORT:-9200}
+      AOSS_ENDPOINT: ${AOSS_ENDPOINT:-}
       EVENT_PROCESSING_MODE: ${EVENT_PROCESSING_MODE:-full}
       SESSION_FLUSH_THRESHOLD: ${SESSION_FLUSH_THRESHOLD:-3}
+      SUPERVISOR_MODE: ${SUPERVISOR_MODE:-manual}
+      RECOMMEND_MODE: ${RECOMMEND_MODE:-manual}
+      PII_MODE: ${PII_MODE:-regex}
+      TRACE_SYNC_MODE: ${TRACE_SYNC_MODE:-local}
+      S3_TRACES_BUCKET: ${S3_TRACES_BUCKET:-}
+      AGENTCORE_AGENT_ARN: ${AGENTCORE_AGENT_ARN:-}
+      QUEUE_MODE: ${QUEUE_MODE:-redis}
+      SQS_QUEUE_URL: ${SQS_QUEUE_URL:-}
     depends_on:
       - redis
       - dynamodb-local

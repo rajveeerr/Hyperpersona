@@ -41,6 +41,36 @@ def _parse_facts(generated: str) -> list[dict]:
     return [{"text": "interested in this product category", "polarity": 1}]
 
 
+def make_analyzer_tool(
+    bedrock: BedrockClientProtocol,
+    vectors: VectorStoreProtocol,
+):
+    """Return a Strands @tool that closes over bedrock + vectors deps."""
+    from strands import tool
+
+    @tool
+    def analyze_behavior_tool(
+        customer_id: str, event_text: str, event_id: str,
+    ) -> dict:
+        """Extract behavioral facts from a customer event, embed them, store.
+
+        Embeds the event text and stores it in behavior-embeddings. Asks
+        Claude to extract atomic facts as JSON, embeds each fact, stores
+        them in customer-facts. Returns a count of facts extracted.
+
+        Args:
+            customer_id: the customer the event belongs to
+            event_text: redacted event text (PII already removed by privacy tool)
+            event_id: the event's unique ID, used as the doc-id base
+
+        Returns:
+            dict with 'facts_extracted' (int) and 'event_embedded' (bool).
+        """
+        return analyze_behavior(customer_id, event_text, event_id, bedrock, vectors)
+
+    return analyze_behavior_tool
+
+
 def analyze_behavior(
     customer_id: str,
     event_text: str,

@@ -1,7 +1,10 @@
-"""Create DynamoDB tables in DynamoDB Local.
+"""Create DynamoDB tables.
 
-Idempotent — safe to re-run. Run inside the server container so the same
-DYNAMODB_ENDPOINT env var is used:
+Idempotent — safe to re-run. Reads DYNAMODB_ENDPOINT from env:
+  - empty / unset → real AWS DynamoDB (in AWS_REGION)
+  - http://...    → DynamoDB Local at that URL
+
+Run inside the server container so it sees the same env vars as the server:
 
   make setup-db
   # or
@@ -13,7 +16,7 @@ import os
 import boto3
 from botocore.exceptions import ClientError
 
-ENDPOINT = os.getenv("DYNAMODB_ENDPOINT", "http://localhost:8001")
+ENDPOINT = os.getenv("DYNAMODB_ENDPOINT", "").strip() or None
 REGION = os.getenv("AWS_REGION", "us-east-1")
 
 dynamodb = boto3.client("dynamodb", endpoint_url=ENDPOINT, region_name=REGION)
@@ -164,7 +167,21 @@ def create_or_skip(spec: dict) -> str:
 
 
 def enable_ttl(table_name: str, attribute: str = "expires_at") -> str:
-    """Enable DynamoDB TTL on a table. Idempotent."""
+    """Enable DynamoDB TTL on a table. Idempotent.
+
+    Real AWS DynamoDB returns ResourceInUseException if the table isn't
+    ACTIVE yet — wait for it. DynamoDB Local creates tables instantly so
+    the waiter is a no-op there.
+    """
+    try:
+        dynamodb.get_waiter("table_exists").wait(
+            TableName=table_name,
+            WaiterConfig={"Delay": 2, "MaxAttempts": 30},
+        )
+    except Exception:
+        # If the waiter itself fails, fall through and let the TTL call
+        # surface the real error.
+        pass
     try:
         dynamodb.update_time_to_live(
             TableName=table_name,
@@ -183,10 +200,12 @@ def enable_ttl(table_name: str, attribute: str = "expires_at") -> str:
 
 
 def main() -> None:
-    print(f"endpoint: {ENDPOINT}")
+    print(f"endpoint: {ENDPOINT or 'AWS default (real DynamoDB)'}  region: {REGION}")
     for spec in TABLES:
         print(create_or_skip(spec))
-    # TTL on events so old data auto-expires per the customer's retention setting
+    # TTL on events so old data auto-expires per the customer's retention setting.
+    # On real AWS DynamoDB, TTL takes up to 1h to actually start sweeping;
+    # the table reports it enabled instantly though.
     print(enable_ttl("customer_events", "expires_at"))
 
 
