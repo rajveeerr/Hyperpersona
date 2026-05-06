@@ -23,7 +23,8 @@
       "Bash(MSYS_NO_PATHCONV=1 make setup-db)",
       "Bash(MSYS_NO_PATHCONV=1 make setup-aoss)",
       "Bash(MSYS_NO_PATHCONV=1 make test-e2e)",
-      "Bash(xargs -I {} docker exec hyperpersona-redis-1 redis-cli ZRANGE {} 0 -1 WITHSCORES)"
+      "Bash(xargs -I {} docker exec hyperpersona-redis-1 redis-cli ZRANGE {} 0 -1 WITHSCORES)",
+      "Bash(curl -sf http://localhost:8000/health)"
     ]
   },
   "enabledMcpjsonServers": [

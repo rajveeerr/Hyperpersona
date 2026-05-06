@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "hyperpersona": {
+      "command": "hyperpersona-mcp",
+      "env": {
+        "HYPERPERSONA_BASE_URL": "http://localhost:8000",
+        "HYPERPERSONA_EMAIL": "demo@example.com",
+        "HYPERPERSONA_PASSWORD": "demo-password-123"
+      }
+    }
+  }
+}
