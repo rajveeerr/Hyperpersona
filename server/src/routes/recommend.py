@@ -40,8 +40,12 @@ RESULT_TIMEOUT_SECONDS = 60
 
 
 def _cache_key(customer_id: str, context: str) -> str:
+    # `v2` prefix bumped when the worker started returning the `rail`
+    # object on /recommend responses. Old `offer:{cid}:{h}` keys lacked
+    # the field; bumping the prefix invalidates them in one shot so the
+    # FE never reads a pre-rail payload during the deploy window.
     h = hashlib.sha256(context.encode("utf-8")).hexdigest()[:16]
-    return f"offer:{customer_id}:{h}"
+    return f"offer:v2:{customer_id}:{h}"
 
 
 @router.get("/recommend")

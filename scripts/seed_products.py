@@ -21,9 +21,18 @@ import os
 import sys
 from pathlib import Path
 
-# /app is the server WORKDIR. /app/src is the server `src` package, so
-# we import schema/services as `src.schemas.…`.
-sys.path.insert(0, "/app")
+# Path setup that works in both contexts:
+#   - Docker container: /app/{src,shared} are bind-mounted; /app on path.
+#   - Host (.venv):    repo_root/{shared,server/src}; need both repo_root
+#                       AND repo_root/server on the path so `from src.…`
+#                       imports resolve to server/src/.
+if Path("/app/src").exists():
+    sys.path.insert(0, "/app")
+else:
+    _here = Path(__file__).resolve()
+    _repo = _here.parent.parent
+    sys.path.insert(0, str(_repo / "server"))  # makes `import src.…` work
+    sys.path.insert(0, str(_repo))              # makes `import shared.…` work
 
 from shared.bedrock import make_bedrock_client  # noqa: E402
 from shared.dynamo import DynamoClient  # noqa: E402
@@ -39,9 +48,15 @@ log = logging.getLogger("seed_products")
 
 
 # Inside the server container, server/src is bind-mounted at /app/src,
-# so the seed JSON lives at /app/src/data/. Allow override via env for
-# running outside docker.
-SEED_DIR = Path(os.getenv("SEED_DATA_DIR", "/app/src/data"))
+# so the seed JSON lives at /app/src/data/. Outside docker (host venv),
+# point at the source-tree copy.
+def _default_seed_dir() -> Path:
+    if Path("/app/src/data").exists():
+        return Path("/app/src/data")
+    return Path(__file__).resolve().parent.parent / "server" / "src" / "data"
+
+
+SEED_DIR = Path(os.getenv("SEED_DATA_DIR", str(_default_seed_dir())))
 
 
 def _load_json(path: Path) -> list[dict]:

@@ -23,7 +23,16 @@
       "Bash(MSYS_NO_PATHCONV=1 make setup-db)",
       "Bash(MSYS_NO_PATHCONV=1 make setup-aoss)",
       "Bash(MSYS_NO_PATHCONV=1 make test-e2e)",
-      "Bash(xargs -I {} docker exec hyperpersona-redis-1 redis-cli ZRANGE {} 0 -1 WITHSCORES)"
+      "Bash(xargs -I {} docker exec hyperpersona-redis-1 redis-cli ZRANGE {} 0 -1 WITHSCORES)",
+      "Bash(grep -rnE 'currency|USD|CAD|dollar|\"\\\\$[0-9]' /Users/Rajveer/Desktop/Coding/100xDevs-Journey/Congnizant/worker /Users/Rajveer/Desktop/Coding/100xDevs-Journey/Congnizant/agentcore /Users/Rajveer/Desktop/Coding/100xDevs-Journey/Congnizant/shared)",
+      "Bash(grep *)",
+      "Bash(tee /tmp/tsc-out2.txt)",
+      "Bash(echo \"---EXIT $?---\")",
+      "Read(//tmp/**)",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('worker/src/handlers/generate_recommendation.py'\\).read\\(\\)\\); ast.parse\\(open\\('server/src/routes/recommend.py'\\).read\\(\\)\\); print\\('python OK'\\)\")",
+      "Bash(tee /tmp/tsc-out3.txt)",
+      "Bash(echo \"---tsc EXIT $?---\")",
+      "Bash(tee /tmp/tsc-out4.txt)"
     ]
   },
   "enabledMcpjsonServers": [

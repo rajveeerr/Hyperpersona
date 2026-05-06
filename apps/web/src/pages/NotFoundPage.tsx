@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { Context } from "@/features/events/contexts";
 import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
 import { recommendProductsToProducts } from "@/features/recommendations/mappers";
+import { resolveRailCopy } from "@/features/recommendations/railCopy";
 import { apiClient } from "@/shared/api/client";
 import { tw } from "@/shared/ui/tw";
 
@@ -67,19 +68,30 @@ export function NotFoundPage() {
         </Link>
       </div>
 
-      {recommendationsQuery.data && recommendationsQuery.data.products.length > 0 ? (
-        <div className="mt-12 w-full max-w-5xl text-left">
-          <RecommendationRail
-            products={recommendProductsToProducts(recommendationsQuery.data.products)}
-            sourceContext={noResultsContext}
-            title="While you're here, take a look at these"
-            subtitle="Curated"
-            reason={recommendationsQuery.data.personalization_reason ?? undefined}
-            personalized={Boolean(recommendationsQuery.data.personalization_reason)}
-            presentation="default"
-          />
-        </div>
-      ) : null}
+      {recommendationsQuery.data && recommendationsQuery.data.products.length > 0
+        ? (() => {
+            const rail = resolveRailCopy(recommendationsQuery.data, {
+              eyebrow: "Curated",
+              headline: "While you're here, take a look at these",
+              subtitle: "A few staples we'd recommend in their place.",
+              modeLabel: "Trending now",
+            });
+            return (
+              <div className="mt-12 w-full max-w-5xl text-left">
+                <RecommendationRail
+                  products={recommendProductsToProducts(recommendationsQuery.data.products)}
+                  sourceContext={noResultsContext}
+                  title={rail.headline}
+                  subtitle={rail.eyebrow}
+                  reason={rail.subtitle}
+                  personalized={Boolean(recommendationsQuery.data.personalization_reason)}
+                  modeLabel={rail.mode_label}
+                  presentation="default"
+                />
+              </div>
+            );
+          })()
+        : null}
     </div>
   );
 }

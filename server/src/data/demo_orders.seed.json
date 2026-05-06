@@ -3,28 +3,28 @@
     "id": "ord-demo-1001",
     "status": "shipped",
     "placedAtOffsetDays": -5,
-    "total": 308,
-    "currency": "CAD",
+    "total": 25564,
+    "currency": "INR",
     "destinationLabel": "Home · Montreal",
     "lineCount": 2,
     "trackingUrl": "https://example.com/track/ord-demo-1001",
     "deliveryAddressId": "addr-home",
     "lines": [
-      {"productId": "prod-1", "slug": "altitude-shell-jacket", "name": "Altitude Shell Jacket", "quantity": 1, "unitPrice": 220},
-      {"productId": "prod-7", "slug": "ridge-merino-sock", "name": "Ridge Merino Sock", "quantity": 2, "unitPrice": 24}
+      {"productId": "prod-1", "slug": "altitude-shell-jacket", "name": "Altitude Shell Jacket", "quantity": 1, "unitPrice": 18260},
+      {"productId": "prod-7", "slug": "ridge-merino-sock", "name": "Ridge Merino Sock", "quantity": 2, "unitPrice": 1992}
     ]
   },
   {
     "id": "ord-demo-1002",
     "status": "delivered",
     "placedAtOffsetDays": -40,
-    "total": 128,
-    "currency": "CAD",
+    "total": 10624,
+    "currency": "INR",
     "destinationLabel": "Office · Toronto",
     "lineCount": 1,
     "deliveryAddressId": "addr-office",
     "lines": [
-      {"productId": "prod-11", "slug": "arc-desk-lamp", "name": "Arc Desk Lamp", "quantity": 1, "unitPrice": 128}
+      {"productId": "prod-11", "slug": "arc-desk-lamp", "name": "Arc Desk Lamp", "quantity": 1, "unitPrice": 10624}
     ]
   }
 ]

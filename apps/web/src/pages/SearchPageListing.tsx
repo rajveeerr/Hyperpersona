@@ -10,11 +10,10 @@ import {
 import { ListingEmptyFiltered } from "@/features/catalog/components/ListingEmptyFiltered";
 import { ProductGrid } from "@/features/catalog/components/ProductGrid";
 import { Context } from "@/features/events/contexts";
-import { useDebugEventStore } from "@/features/events/debug/store";
 import { useSpecTrack } from "@/features/events/specEvents";
 import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
 import { recommendProductsToProducts } from "@/features/recommendations/mappers";
-import { SearchInsightPanel, SearchInsightPanelSkeleton } from "@/features/search/components/SearchInsightPanel";
+import { resolveRailCopy } from "@/features/recommendations/railCopy";
 import { useFacetStripBusyForScopeChange } from "../features/catalog/hooks/useFacetStripBusyForScopeChange";
 import { useSearchFacets } from "@/features/catalog/hooks/useSearchFacets";
 import { apiClient } from "@/shared/api/client";
@@ -69,12 +68,6 @@ export function SearchPageListing() {
   });
 
   const facetsQuery = useSearchFacets({ q, vertical, freeDelivery });
-
-  const explanationsQuery = useQuery({
-    queryKey: ["explanations", q],
-    queryFn: apiClient.getExplanations,
-    enabled: q.length > 0,
-  });
 
   const initialListLoading = Boolean(q) && !query.data && (query.isPending || query.isLoading);
   const { facetFiltersBusy } = useFacetStripBusyForScopeChange(q, facetsQuery);
@@ -152,15 +145,6 @@ export function SearchPageListing() {
   };
 
   const hasSearchFacetFilters = Boolean(vertical) || freeDelivery === "true";
-  const recentContextChange = useDebugEventStore((state) =>
-    state.events.find((event) => event.event_type === "consent_updated" || event.event_type === "profile_updated"),
-  );
-  const rankingContextChange = recentContextChange
-    ? {
-        source: recentContextChange.event_type === "consent_updated" ? ("consent" as const) : ("profile" as const),
-        at: recentContextChange.created_at,
-      }
-    : null;
 
   // Spec `search` event — fire once per (q, results_count) pair as soon as
   // results land. Firing here (rather than on form submit) lets us include
@@ -199,31 +183,6 @@ export function SearchPageListing() {
       {query.isError ? (
         <p className="text-sm text-red-800/90" role="alert">
           Could not load search results. Check your connection and try again.
-        </p>
-      ) : null}
-
-      {query.data ? (
-        <div className="flex flex-wrap items-center gap-2" aria-live="polite">
-          <span className={query.data.personalized ? tw.chipSuccess : tw.chipWarning}>
-            {query.data.personalized ? "Personalized ranking active" : "Generic ranking mode"}
-          </span>
-          <span className={tw.chipInfo}>Query: {q || "None"}</span>
-        </div>
-      ) : null}
-
-      {query.isError ? null : initialListLoading ||
-        (query.isSuccess && (explanationsQuery.isPending || explanationsQuery.isLoading)) ? (
-        <SearchInsightPanelSkeleton />
-      ) : query.isSuccess && query.data && explanationsQuery.data ? (
-        <SearchInsightPanel
-          personalized={query.data.personalized}
-          query={q}
-          explanations={explanationsQuery.data.search}
-          rankingContextChange={rankingContextChange}
-        />
-      ) : query.isSuccess && query.data && explanationsQuery.isError ? (
-        <p className={`rounded-card border border-outline/40 bg-surface/80 px-5 py-4 text-sm ${tw.muted}`}>
-          Ranking explanations could not be loaded; results still reflect your filters and sort order.
         </p>
       ) : null}
 
@@ -304,17 +263,30 @@ export function SearchPageListing() {
             </nav>
           ) : null}
 
-          {recommendationsQuery.data && recommendationsQuery.data.products.length > 0 ? (
-            <RecommendationRail
-              products={recommendProductsToProducts(recommendationsQuery.data.products)}
-              sourceContext={searchContext}
-              title={isEmptyResults ? "Try one of these instead" : "You might also like"}
-              subtitle={isEmptyResults ? "No results" : "Sponsored slot"}
-              reason={recommendationsQuery.data.personalization_reason ?? undefined}
-              personalized={Boolean(recommendationsQuery.data.personalization_reason)}
-              presentation="default"
-            />
-          ) : null}
+          {recommendationsQuery.data && recommendationsQuery.data.products.length > 0
+            ? (() => {
+                const rail = resolveRailCopy(recommendationsQuery.data, {
+                  eyebrow: isEmptyResults ? "No results" : "Sponsored slot",
+                  headline: isEmptyResults ? "Try one of these instead" : "You might also like",
+                  subtitle: isEmptyResults
+                    ? "A few staples we'd recommend in their place."
+                    : "Curated picks based on your search.",
+                  modeLabel: "Curated picks",
+                });
+                return (
+                  <RecommendationRail
+                    products={recommendProductsToProducts(recommendationsQuery.data.products)}
+                    sourceContext={searchContext}
+                    title={rail.headline}
+                    subtitle={rail.eyebrow}
+                    reason={rail.subtitle}
+                    personalized={Boolean(recommendationsQuery.data.personalization_reason)}
+                    modeLabel={rail.mode_label}
+                    presentation="default"
+                  />
+                );
+              })()
+            : null}
         </>
       ) : null}
     </div>

@@ -112,7 +112,7 @@ export function ProfilePage() {
           disabled={mutation.isPending}
           onClick={() => {
             const next = profileQuery.data.explicitPreferences.map((item) =>
-              item.key === "budget" ? { ...item, value: "$40-$120" } : item,
+              item.key === "budget" ? { ...item, value: "₹3,320-₹9,960" } : item,
             );
             const prevValue = profileQuery.data.explicitPreferences.find((p) => p.key === "budget")?.value;
             mutation.mutate(next);
@@ -120,8 +120,8 @@ export function ProfilePage() {
               event_type: "profile_updated",
               payload: {
                 field: "budget",
-                value: "$40-$120",
-                // Delta lets the worker spot magnitude of change ("$40-$120"
+                value: "₹3,320-₹9,960",
+                // Delta lets the worker spot magnitude of change ("₹3,320-₹9,960"
                 // → tighter band) without re-fetching the prior profile.
                 previous_value: prevValue ?? null,
                 customer_segment: profileQuery.data.segment,

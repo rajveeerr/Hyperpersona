@@ -5,7 +5,7 @@
   "topCategories": ["city-commute", "trail-running"],
   "explicitPreferences": [
     {"key": "fit", "label": "Preferred fit", "value": "Tailored but relaxed"},
-    {"key": "budget", "label": "Budget band", "value": "$80-$220"}
+    {"key": "budget", "label": "Budget band", "value": "₹6,640-₹18,260"}
   ],
   "inferredInterests": [
     {"id": "interest-1", "label": "Weather-ready gear", "confidence": 0.92, "source": "Viewed shell jackets twice"},

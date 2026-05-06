@@ -8,6 +8,7 @@ facet group, AND across groups).
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -16,13 +17,23 @@ from ..schemas.catalog import (
     CatalogFacetValue,
     Product,
     ProductListResponse,
-    ProductVertical,
     SortOrder,
 )
 
 
 def _vertical(p: Product) -> str:
-    return p.vertical or "general"
+    """Slug used by the 'vertical' filter dimension on the wire.
+
+    Historically this read `p.vertical` (apparel/electronics/furniture/general)
+    which produced 4 broad pills. With ~600 products spanning Mens/Womens/Kids
+    /Beauty/Jewellery/Watches/Electronics/Kitchen, those 4 buckets were too
+    coarse for browse — `Apparel & accessories` alone held >300 items.
+
+    We now key off `p.department` (the seed data carries Mens, Womens, Beauty,
+    Jewellery, Kids, Watches, Electronics, Kitchen, etc.). The URL param keeps
+    its legacy name `vertical=` so the FE doesn't need to change.
+    """
+    return (p.department or "Other").lower()
 
 
 def _matches_query(text: str | None, q: str) -> bool:
@@ -115,13 +126,23 @@ def build_facets(all_products: Iterable[Product], params: FilterParams) -> list[
     def _count(slice_: list[Product], pred) -> int:
         return sum(1 for p in slice_ if pred(p))
 
-    verticals: list[ProductVertical] = ["apparel", "furniture", "electronics", "general"]
-    vertical_labels = {
-        "apparel": "Apparel & accessories",
-        "furniture": "Furniture & lighting",
-        "electronics": "Electronics",
-        "general": "Everyday & other",
-    }
+    # Department facet — values driven by the actual `p.department` data, not
+    # by a hardcoded enum. `_vertical()` returns the lowercased department
+    # slug; we sort the resulting buckets by count descending, then alphabetical
+    # for deterministic pill ordering. Departments with fewer than HIDE_BELOW
+    # items are omitted from the pill bar (they're still reachable via the
+    # category dropdown) — this prevents singleton "Fitness" / "Lighting"
+    # pills from cluttering the UX.
+    HIDE_BELOW = 3
+    dept_counts = Counter(_vertical(p) for p in vertical_slice)
+    sorted_depts = sorted(
+        ((slug, n) for slug, n in dept_counts.items() if n >= HIDE_BELOW),
+        key=lambda kv: (-kv[1], kv[0]),
+    )
+
+    def _label(slug: str) -> str:
+        # "home living" → "Home Living"; preserves multi-word titles.
+        return " ".join(part.capitalize() for part in slug.replace("-", " ").split())
 
     return [
         CatalogFacetGroup(
@@ -130,11 +151,11 @@ def build_facets(all_products: Iterable[Product], params: FilterParams) -> list[
             facetType="multi",
             values=[
                 CatalogFacetValue(
-                    value=v,
-                    label=vertical_labels[v],
-                    count=_count(vertical_slice, lambda p, v=v: _vertical(p) == v),
+                    value=slug,
+                    label=_label(slug),
+                    count=count,
                 )
-                for v in verticals
+                for slug, count in sorted_depts
             ],
         ),
         CatalogFacetGroup(
