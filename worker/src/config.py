@@ -6,8 +6,10 @@ class Settings(BaseSettings):
     dynamodb_endpoint: str = "http://localhost:8001"
     aws_region: str = "us-east-1"
 
-    # Bedrock — flip to "real" once AWS creds are available
-    bedrock_mode: str = "mock"
+    # Bedrock — only "real" is supported (MockBedrockClient was removed).
+    # Kept on the model so `BEDROCK_MODE=real` in env stays explicit and so
+    # any misconfig surfaces loudly at make_bedrock_client time.
+    bedrock_mode: str = "real"
     bedrock_region: str = "us-east-1"
     bedrock_text_model: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     bedrock_embed_model: str = "amazon.titan-embed-text-v2:0"

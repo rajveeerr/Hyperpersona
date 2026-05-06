@@ -22,8 +22,9 @@ namespace overlap is left to the prompt instruction ("do not recommend items
 already in the cart") rather than a set-difference, since the two id spaces
 are not aligned.
 
-Mock-mode: detects "[mock]" prefix on the LLM response and falls back to
-"top-N from candidates" since they're already KNN-ranked.
+Parse-failure fallback: when Claude returns malformed JSON or an empty
+rec set, falls back to "top-N from candidates" since they're already
+KNN-ranked.
 """
 
 import json
@@ -164,10 +165,6 @@ def _parse_json(generated: str) -> list[dict]:
         return []
 
 
-def _looks_like_mock(text: str) -> bool:
-    return text.strip().startswith("[mock]")
-
-
 def _match_fact_to_product(
     product: dict,
     prefers_facts: list[dict],
@@ -209,9 +206,9 @@ def _heuristic_fallback(
     ranked_facts: list[dict],
     limit: int,
 ) -> list[dict]:
-    """Mock-mode / parse-failure fallback: take top N from the KNN-ranked
-    candidate list. Candidates are already similarity-sorted, so this is a
-    sensible default. Personalization reasons are derived heuristically from
+    """Parse-failure fallback: take top N from the KNN-ranked candidate
+    list. Candidates are already similarity-sorted, so this is a sensible
+    default. Personalization reasons are derived heuristically from
     fact-text ↔ product-attribute overlap."""
     prefers_facts = [
         f for f in ranked_facts if (f.get("polarity") or 0) >= 0 and f.get("text")
@@ -332,13 +329,12 @@ def generate_complement_recommendation(
     prompt = _build_prompt(cart_products, candidates, ranked_facts, limit)
     raw = bedrock.generate(prompt=prompt, system=_SYSTEM, max_tokens=600)
 
-    parsed: list[dict] = []
-    used_llm = False
-    if not _looks_like_mock(raw):
-        parsed = _parse_json(raw)
-        used_llm = bool(parsed)
+    parsed = _parse_json(raw)
+    used_llm = bool(parsed)
 
     if not parsed:
+        # Claude returned malformed JSON or an empty rec set — fall back to
+        # the deterministic heuristic so the rail still renders something.
         parsed = _heuristic_fallback(candidates, ranked_facts, limit)
 
     # 6. Hydrate result with full product details.

@@ -23,8 +23,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiry_hours: int = 24
 
-    # Bedrock — server uses embed() to vectorize search queries.
-    bedrock_mode: str = "mock"
+    # Bedrock — server uses embed() to vectorize search queries. Only "real"
+    # is supported; the env var stays for explicit visibility but anything
+    # other than "real" will fail loudly at client construction.
+    bedrock_mode: str = "real"
     bedrock_region: str = "us-east-1"
     bedrock_text_model: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     bedrock_embed_model: str = "amazon.titan-embed-text-v2:0"

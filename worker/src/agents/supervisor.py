@@ -3,14 +3,12 @@
 Two implementations behind a Protocol, picked at startup by SUPERVISOR_MODE:
 
   - ManualSupervisor  fixed-order orchestrator. Calls privacy_tool then
-                      analyzer_tool. Works in BEDROCK_MODE=mock or real.
-                      The default — used in tests and demos.
+                      analyzer_tool. The default — used in tests and demos.
 
   - StrandsSupervisor wraps a strands.Agent that gets a system prompt and
                       the @tool versions of privacy + analyzer. Claude
-                      picks the order. Requires BEDROCK_MODE=real because
-                      Strands talks to Bedrock through boto3 directly,
-                      bypassing MockBedrockClient.
+                      picks the order. Talks to Bedrock through boto3
+                      directly via Strands' BedrockModel.
 
   - AgentCoreSupervisor (Phase 10) — invokes a remote agent runtime in a
                       Firecracker microVM. Stub raises NotImplementedError
@@ -45,11 +43,7 @@ class SupervisorProtocol(Protocol):
 
 
 class ManualSupervisor:
-    """Hand-rolled orchestrator: privacy → (if blocked, stop) → analyzer.
-
-    This is the only path that works in BEDROCK_MODE=mock since the mock
-    Bedrock client is not wired into Strands' BedrockModel.
-    """
+    """Hand-rolled orchestrator: privacy → (if blocked, stop) → analyzer."""
 
     def __init__(
         self,
@@ -417,8 +411,7 @@ def make_supervisor(
         if settings.bedrock_mode != "real":
             raise RuntimeError(
                 "SUPERVISOR_MODE=strands requires BEDROCK_MODE=real "
-                f"(got {settings.bedrock_mode!r}). Strands talks to Bedrock "
-                "via boto3 directly and cannot use MockBedrockClient."
+                f"(got {settings.bedrock_mode!r})."
             )
         orchestrator = settings.bedrock_orchestrator_model or settings.bedrock_text_model
         log.info("Supervisor: strands (orchestrator=%s analyzer=%s region=%s)",

@@ -248,6 +248,16 @@ export function trackEvent(input: TrackInput): void {
       if (pending >= FLUSH_SIZE_THRESHOLD) {
         clearFlushTimer();
         void flushPending();
+      } else if (consecutiveFailures > 0) {
+        // We're in backoff from prior failures (server was 5xx or offline).
+        // The existing pending timer may be sitting on a long backoff delay
+        // (up to 30s). A new event arriving is a strong "user is still
+        // active, try again" signal — and the failure cause may have just
+        // resolved (creds refreshed, network back). Replace the long timer
+        // with the standard debounce so recovery is fast instead of
+        // waiting out the full backoff window.
+        clearFlushTimer();
+        scheduleFlush(FLUSH_DEBOUNCE_MS);
       } else {
         scheduleFlush();
       }

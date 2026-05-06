@@ -55,7 +55,7 @@ def main() -> None:
         region=os.getenv("AWS_REGION", "us-east-1"),
     )
     bedrock = make_bedrock_client(
-        mode=os.getenv("BEDROCK_MODE", "mock"),
+        mode=os.getenv("BEDROCK_MODE", "real"),
         region=os.getenv("BEDROCK_REGION", "us-east-1"),
         text_model=os.getenv("BEDROCK_TEXT_MODEL", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
         embed_model=os.getenv("BEDROCK_EMBED_MODEL", "amazon.titan-embed-text-v2:0"),
