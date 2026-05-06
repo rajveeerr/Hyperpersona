@@ -89,6 +89,9 @@ export function Header() {
           <NavLink to="/mcp" prefetch="intent" className="nav-link-quiet">
             MCP
           </NavLink>
+          <NavLink to="/traces" prefetch="intent" className="nav-link-quiet">
+            Traces
+          </NavLink>
         </nav>
 
         <div className="flex flex-wrap items-center justify-center gap-6 md:justify-end">

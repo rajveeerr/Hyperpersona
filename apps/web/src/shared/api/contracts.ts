@@ -623,3 +623,23 @@ export type CheckoutResponse = {
   status: "confirmed";
   placedAt: string;
 };
+
+/**
+ * One trace row from `GET /traces/{job_id}`. Mirrors the SQLite columns in
+ * `worker/src/trace_logger.py` — `input` / `output` are JSON-parsed by the
+ * server (`shared/trace_reader.py`) so they arrive as objects, not strings.
+ */
+export type TraceRow = {
+  id: number;
+  job_id: string;
+  agent_name: string;
+  step: string;
+  input: Record<string, unknown> | null;
+  output: Record<string, unknown> | null;
+  /** Per-event milliseconds. Lifecycle markers (start/end) report `0`. */
+  duration_ms: number | null;
+  /** ISO 8601 UTC. */
+  timestamp: string;
+  /** "ok" | "error" — see `worker/src/trace_logger.py` call sites. */
+  status: string;
+};
