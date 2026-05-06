@@ -28,7 +28,8 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - uses: aws-actions/amazon-ecr-login@v2
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set image tag
         id: meta
@@ -44,14 +45,14 @@ jobs:
           platforms: linux/amd64
           push: ${{ github.event_name == 'push' }}
           tags: |
-            ${{ vars.ECR_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/hyperpersona/server:${{ steps.meta.outputs.tag }}
-            ${{ vars.ECR_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/hyperpersona/server:main
+            ${{ steps.ecr.outputs.registry }}/hyperpersona/server:${{ steps.meta.outputs.tag }}
+            ${{ steps.ecr.outputs.registry }}/hyperpersona/server:main
 
       - name: Deploy to ECS
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
-          NEW_IMAGE="${{ vars.ECR_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/hyperpersona/server:${{ steps.meta.outputs.tag }}"
+          NEW_IMAGE="${{ steps.ecr.outputs.registry }}/hyperpersona/server:${{ steps.meta.outputs.tag }}"
 
           aws ecs describe-task-definition \
             --task-definition hyperpersona-server \
