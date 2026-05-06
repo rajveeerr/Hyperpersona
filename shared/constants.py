@@ -76,3 +76,26 @@ COMPLEMENT_PREF_WEIGHT = 0.3
 # reuses COMPLEMENT_PREF_WEIGHT — same intent, same range of acceptable values.
 RECOMMEND_KNN_K = 60
 RECOMMEND_PRODUCTS_LIMIT = 6
+
+# Substitute mode of the related-recommender (driven by /recommend/similar-price).
+# Anchor-driven KNN with category-lock + price-band + review-quality floor.
+# K is wider than complement because the category+price filters drop a lot of
+# candidates before the LLM ranks them.
+SIMILAR_PRICE_DEFAULT_LIMIT = 6
+SIMILAR_PRICE_DEFAULT_TOLERANCE = 0.2          # ±20% band by default
+SIMILAR_PRICE_KNN_K = 100
+SIMILAR_PRICE_TOP_CANDIDATES = 15
+# Pref weight is higher than complement's 0.3 because the anchor signal is
+# weaker than a full cart — one product gives less topical context than 2-5,
+# so we lean a bit harder on customer history.
+SIMILAR_PRICE_PREF_WEIGHT = 0.4
+# When the strict category-lock returns fewer than this many KNN hits, relax
+# to vertical-lock (e.g. "Phones" → "electronics"). Tunes how niche the
+# anchor's category can be before we widen the substitute pool.
+SIMILAR_PRICE_FALLBACK_THRESHOLD = 5
+
+# Review-quality floor for substitute recommendations. Cross-cutting constant
+# so any future recommender can adopt the same thresholds. Today applied only
+# by the substitute branch of generate_related_recommendation.
+MIN_RATING_FOR_RECOMMENDATION = 3.5
+MIN_REVIEW_COUNT_FOR_RECOMMENDATION = 2
