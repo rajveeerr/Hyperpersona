@@ -79,6 +79,7 @@ def main() -> None:
         bedrock_verifier=bedrock_verifier,
         vectors=vectors,
         tracer=tracer, settings=settings,
+        dynamo=dynamo,
     )
 
     ctx = {
