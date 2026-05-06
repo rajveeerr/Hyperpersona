@@ -255,7 +255,12 @@ class StrandsRecommendSupervisor:
 
 
 def _build_result(rec: dict, ver: dict) -> dict:
-    """Common result shape — both supervisor implementations return this."""
+    """Common result shape — both supervisor implementations return this.
+
+    `ranked_facts` is included for the handler to feed into the products
+    picker and the personalization heading. The handler strips it before
+    pushing the public response so internal fact dicts don't leak.
+    """
     return {
         "offer": (ver.get("final_offer")
                   if ver.get("final_offer") is not None
@@ -266,6 +271,7 @@ def _build_result(rec: dict, ver: dict) -> dict:
         "behaviors_used": rec.get("behaviors_used", 0),
         "summaries_used": rec.get("summaries_used", 0),
         "conflicts": rec.get("conflicts", []),
+        "ranked_facts": rec.get("ranked_facts", []),
     }
 
 

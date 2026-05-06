@@ -110,4 +110,9 @@ def generate_recommendation(
         "behaviors_used": len(behaviors),
         "summaries_used": len(summaries),
         "conflicts": conflicts,
+        # Pass the ACE-ranked fact dicts (text + polarity + combined_score)
+        # downstream so the products picker and personalization heading can
+        # reuse them without re-running the KNN + ACE pass. Internal field —
+        # the handler strips this before pushing the public response.
+        "ranked_facts": ranked,
     }
