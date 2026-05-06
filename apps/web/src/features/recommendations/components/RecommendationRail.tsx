@@ -74,6 +74,11 @@ export function RecommendationRail({
         surface: presentation,
         source_context: sourceContext,
         product_count: products.length,
+        // Ship the ranked id list so the worker can compute impression-to-click
+        // curves per (rail, position). Capped at 24 to keep the payload
+        // bounded — rails with more rows are rare and the tail rarely converts.
+        product_ids: products.slice(0, 24).map((p) => p.id),
+        categories: Array.from(new Set(products.map((p) => p.category))).filter(Boolean),
       },
       consent_scope: ["analytics", "personalization"],
     });

@@ -17,6 +17,7 @@
 
 import { useEffect, useRef } from "react";
 
+import { getProductSnapshot } from "@/features/events/payloads";
 import { useSpecTrack } from "@/features/events/specEvents";
 
 const DWELL_THRESHOLD_MS = 10_000;
@@ -52,7 +53,13 @@ export function usePdpDwell({ product_id, category }: PdpDwellInput): void {
         DWELL_THRESHOLD_MS,
         accumulatedMs + (lastVisibleAt !== null ? Date.now() - lastVisibleAt : 0),
       ) / 1_000;
+      // Read the rich snapshot from the cache — it was stamped by
+      // ProductPage's `rememberProduct(productSnapshot(product))` on this
+      // same PDP mount, so brand/rating/freeDelivery/etc. are sitting in
+      // memory ready to ship without an extra fetch.
+      const snap = getProductSnapshot(product_id);
       trackRef.current("product_dwell", {
+        ...(snap ?? {}),
         product_id,
         category,
         duration_seconds: Math.round(seconds),

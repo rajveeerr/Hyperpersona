@@ -9,6 +9,7 @@ import {
   type DetailTab,
 } from "@/features/catalog/components/pdp/pdpShared";
 import type { SwatchId } from "@/features/catalog/pdpSwatches";
+import { productSnapshot } from "@/features/events/payloads";
 import { useTrackEvent } from "@/features/events/useTrackEvent";
 import type { Product } from "@/shared/api/contracts";
 import { tw } from "@/shared/ui/tw";
@@ -60,22 +61,34 @@ export function EditorialProductDetail({
       setTab(next);
       track({
         event_type: "pdp_tab_selected",
-        payload: { productId: product.id, slug: product.slug, tab: next },
+        payload: {
+          ...productSnapshot(product),
+          productId: product.id,
+          slug: product.slug,
+          tab: next,
+        },
         consent_scope: ["analytics", "personalization"],
       });
     },
-    [product.id, product.slug, track],
+    [product, track],
   );
 
   const emitVariant = useCallback(
     (optionKind: "color" | "size" | "storage", optionId: string, optionLabel: string) => {
       track({
         event_type: "pdp_variant_selected",
-        payload: { productId: product.id, slug: product.slug, optionKind, optionId, optionLabel },
+        payload: {
+          ...productSnapshot(product),
+          productId: product.id,
+          slug: product.slug,
+          optionKind,
+          optionId,
+          optionLabel,
+        },
         consent_scope: ["analytics", "personalization"],
       });
     },
-    [product.id, product.slug, track],
+    [product, track],
   );
 
   // The spec `product_view` event is fired from `ProductPage` (with spec payload).
@@ -104,7 +117,14 @@ export function EditorialProductDetail({
       if (next !== q) {
         track({
           event_type: "pdp_quantity_changed",
-          payload: { productId: product.id, slug: product.slug, quantity: next },
+          payload: {
+            ...productSnapshot(product),
+            productId: product.id,
+            slug: product.slug,
+            quantity_old: q,
+            quantity_new: next,
+            delta: next - q,
+          },
           consent_scope: ["analytics", "personalization"],
         });
       }
@@ -132,10 +152,14 @@ export function EditorialProductDetail({
   const onReportProduct = useCallback(() => {
     track({
       event_type: "pdp_report_product_clicked",
-      payload: { productId: product.id, slug: product.slug },
+      payload: {
+        ...productSnapshot(product),
+        productId: product.id,
+        slug: product.slug,
+      },
       consent_scope: ["analytics", "personalization"],
     });
-  }, [product.id, product.slug, track]);
+  }, [product, track]);
 
   return (
     <section

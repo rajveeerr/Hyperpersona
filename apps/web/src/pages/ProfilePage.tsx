@@ -114,10 +114,20 @@ export function ProfilePage() {
             const next = profileQuery.data.explicitPreferences.map((item) =>
               item.key === "budget" ? { ...item, value: "$40-$120" } : item,
             );
+            const prevValue = profileQuery.data.explicitPreferences.find((p) => p.key === "budget")?.value;
             mutation.mutate(next);
             track({
               event_type: "profile_updated",
-              payload: { field: "budget", value: "$40-$120" },
+              payload: {
+                field: "budget",
+                value: "$40-$120",
+                // Delta lets the worker spot magnitude of change ("$40-$120"
+                // → tighter band) without re-fetching the prior profile.
+                previous_value: prevValue ?? null,
+                customer_segment: profileQuery.data.segment,
+                top_categories: profileQuery.data.topCategories,
+                inferred_interest_count: profileQuery.data.inferredInterests.length,
+              },
               consent_scope: ["analytics", "personalization"],
             });
           }}
@@ -188,7 +198,17 @@ export function ProfilePage() {
               setDeleteArmed(true);
               track({
                 event_type: "delete_account_armed",
-                payload: {},
+                payload: {
+                  // Snapshot what's about to be wiped — useful for moderation /
+                  // compliance traces and for understanding which kinds of
+                  // shoppers actually pull the trigger.
+                  customer_segment: profileQuery.data.segment,
+                  top_categories: profileQuery.data.topCategories,
+                  explicit_preference_count: profileQuery.data.explicitPreferences.length,
+                  inferred_interest_count: profileQuery.data.inferredInterests.length,
+                  recent_signal_count: profileQuery.data.recentSignals.length,
+                  profile_last_updated: profileQuery.data.lastUpdated,
+                },
                 consent_scope: ["analytics", "personalization"],
               });
             }}

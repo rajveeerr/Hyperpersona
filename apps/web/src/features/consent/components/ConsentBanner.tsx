@@ -202,10 +202,19 @@ export function ConsentBanner() {
               onClick={() => {
                 const nextScopes = ["analytics", "personalization"];
                 const retention = consent.record?.data_retention_days ?? 90;
+                const prevScopes = consent.record?.scopes ?? [];
                 updateConsent.mutate({ scopes: nextScopes, data_retention_days: retention });
                 track({
                   event_type: "consent_updated",
-                  payload: { scopes: nextScopes, data_retention_days: retention, source: "banner" },
+                  payload: {
+                    action: prevScopes.length === 0 ? "create" : "update_scopes",
+                    scopes: nextScopes,
+                    previous_scopes: prevScopes,
+                    scopes_added: nextScopes.filter((s) => !prevScopes.includes(s)),
+                    scopes_removed: prevScopes.filter((s) => !nextScopes.includes(s)),
+                    data_retention_days: retention,
+                    source: "banner",
+                  },
                   consent_scope: nextScopes,
                 });
               }}

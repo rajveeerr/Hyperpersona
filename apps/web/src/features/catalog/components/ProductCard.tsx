@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 import { prefetchProductPageChunk } from "@/app/routeChunks";
+import { productSnapshot } from "@/features/events/payloads";
 import { useTrackEvent } from "@/features/events/useTrackEvent";
 import type { Product } from "@/shared/api/contracts";
 import { formatCurrency } from "@/shared/lib/format";
@@ -37,11 +38,13 @@ export function ProductCard({ product, accent, onClick }: ProductCardProps) {
     track({
       event_type: "product_tile_clicked",
       payload: {
+        ...productSnapshot(product),
+        // Keep camelCase aliases the BE has been seeing, so any worker
+        // already keyed off `productId`/`slug` keeps working alongside the
+        // new snake_case snapshot fields.
         productId: product.id,
         slug: product.slug,
-        freeDelivery: product.freeDelivery === true,
-        vertical: product.vertical ?? "general",
-        source: "grid" as const,
+        source: "grid",
       },
       consent_scope: ["analytics", "personalization"],
     });

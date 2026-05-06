@@ -1,6 +1,7 @@
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 
+import { getSession } from "@/features/auth/tokenStore";
 import { useTrackEvent } from "@/features/events/useTrackEvent";
 import { tw } from "@/shared/ui/tw";
 
@@ -47,9 +48,19 @@ export function Footer() {
     const data = new FormData(event.currentTarget);
     const email = String(data.get("email") ?? "").trim();
     if (!email) return;
+    // Don't ship the email itself — the customer is already identified by
+    // the JWT server-side, and stamping the email into a per-event row would
+    // duplicate PII into a queryable history that the customer record alone
+    // isn't. Stamp `has_email_match` so the worker can still tell whether
+    // the entered email matched the signed-in account without seeing it.
+    const session = getSession();
     track({
       event_type: "newsletter_interest",
-      payload: { email, source: "footer" },
+      payload: {
+        source: "footer",
+        email_length: email.length,
+        has_email_match: Boolean(session?.email && session.email.toLowerCase() === email.toLowerCase()),
+      },
       consent_scope: ["analytics", "personalization"],
     });
     event.currentTarget.reset();

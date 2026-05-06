@@ -184,6 +184,37 @@ class DynamoClient:
                 })
                 bw.put_item(Item=item)
 
+    def batch_get_jobs(self, job_ids: list[str]) -> list[dict]:
+        """Bulk read of job rows by id. BatchGetItem caps at 100 keys per
+        call — chunk above that. Missing rows are simply absent from the
+        result; callers should treat absent ids as "no prior job."
+
+        DynamoDB's BatchGetItem can also return UnprocessedKeys under load;
+        we retry those once before giving up so partial answers don't lead
+        to silent re-enqueue of already-completed jobs.
+        """
+        if not job_ids:
+            return []
+        out: list[dict] = []
+        # Dedup ids — a caller passing duplicates would waste keys in the
+        # 100-cap budget. Preserve order of first occurrence for determinism.
+        seen: set[str] = set()
+        unique_ids = [jid for jid in job_ids if not (jid in seen or seen.add(jid))]
+        client = self.resource.meta.client
+        table_name = TABLE_JOBS
+        for start in range(0, len(unique_ids), 100):
+            chunk = unique_ids[start : start + 100]
+            keys = [{"PK": f"JOB#{jid}", "SK": "META"} for jid in chunk]
+            request = {table_name: {"Keys": keys}}
+            for _ in range(2):
+                resp = client.batch_get_item(RequestItems=request)
+                out.extend(resp.get("Responses", {}).get(table_name, []))
+                unprocessed = resp.get("UnprocessedKeys", {}) or {}
+                if not unprocessed.get(table_name, {}).get("Keys"):
+                    break
+                request = unprocessed
+        return out
+
     def get_job(self, job_id: str) -> dict | None:
         resp = self.table(TABLE_JOBS).get_item(
             Key={"PK": f"JOB#{job_id}", "SK": "META"}
