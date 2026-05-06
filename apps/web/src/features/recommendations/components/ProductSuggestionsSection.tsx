@@ -19,7 +19,7 @@ type ProductSuggestionsSectionProps = {
 export function ProductSuggestionsSection({ children, isLoading }: ProductSuggestionsSectionProps) {
   return (
     <section
-      className={`${tw.storyCanvas} ${tw.editorialBreakout} border-b border-outline/15 py-10 sm:py-12 lg:py-14`}
+      className={`relative z-[2] ${tw.storyCanvas} ${tw.editorialBreakout} border-b border-outline/15 pb-10 pt-5 sm:pb-12 sm:pt-6 lg:pb-14 lg:pt-7`}
       aria-labelledby="pdp-suggestions-heading"
     >
       <div className={tw.layoutFrame}>

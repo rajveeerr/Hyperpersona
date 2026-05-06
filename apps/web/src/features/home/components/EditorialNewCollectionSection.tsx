@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 
+import { prefetchCatalogPageChunk, prefetchProductPageChunk } from "@/app/routeChunks";
 import { formatCurrency } from "@/shared/lib/format";
 import { tw } from "@/shared/ui/tw";
 
@@ -56,7 +57,10 @@ export function EditorialNewCollectionSection() {
           {/* Lifestyle — spans full layout rail width with hero typography */}
           <Link
             to="/catalog"
+            prefetch="intent"
             className={`group relative isolate flex min-h-[min(48vh,22rem)] overflow-hidden sm:min-h-[min(52vh,26rem)] lg:min-h-[min(56vh,32rem)] ${surface}`}
+            onMouseEnter={prefetchCatalogPageChunk}
+            onFocus={prefetchCatalogPageChunk}
           >
             <img
               src={`${BASE}/lifestyle-model.webp`}
@@ -96,7 +100,10 @@ export function EditorialNewCollectionSection() {
               >
                 <Link
                   to={`/products/${tile.slug}`}
+                  prefetch="intent"
                   className="relative flex size-full min-h-0 flex-col outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent"
+                  onMouseEnter={prefetchProductPageChunk}
+                  onFocus={prefetchProductPageChunk}
                 >
                   <span className="pointer-events-none absolute left-4 top-4 z-1 max-w-[min(72%,11rem)] font-body text-[0.625rem] font-medium uppercase leading-[1.15] tracking-[0.2em] text-ink/90 transition-[color,letter-spacing] duration-300 ease-out group-hover:text-ink group-hover:tracking-[0.22em] group-focus-within:text-ink group-focus-within:tracking-[0.22em] sm:left-5 sm:top-5 sm:max-w-52 sm:text-[0.6875rem]">
                     {tile.label}

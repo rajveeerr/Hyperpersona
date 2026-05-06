@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 import type { Product } from "@/shared/api/contracts";
 
@@ -32,28 +31,21 @@ export const catalogSuggestionsCell =
 
 const catalogTileMotionLayout = `${catalogTileCell} ${catalogGridCellEdgeClass}`;
 
-function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const sync = () => setReduced(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-  return reduced;
-}
-
 type ProductGridProps = {
   products: Product[];
   /** Passed to `ProductCard` when the rail should explain why tiles appear (search, recommendations). */
   accent?: string;
 };
 
-function CatalogGridMotionItem({ product, accent }: { product: Product; accent?: string }) {
-  const reduced = usePrefersReducedMotion();
+function CatalogGridMotionItem({
+  product,
+  accent,
+  reduced,
+}: {
+  product: Product;
+  accent?: string;
+  reduced: boolean;
+}) {
   return (
     <motion.li
       className={catalogTileMotionLayout}
@@ -75,10 +67,11 @@ function CatalogGridMotionItem({ product, accent }: { product: Product; accent?:
 
 /** Transparent 3-up lattice + `ProductCard` — inherits parent background. */
 export function ProductGrid({ products, accent }: ProductGridProps) {
+  const reduced = useReducedMotion() ?? false;
   return (
     <ul className={catalogGridShellListClass} role="list">
       {products.map((product) => (
-        <CatalogGridMotionItem key={product.id} product={product} accent={accent} />
+        <CatalogGridMotionItem key={product.id} product={product} accent={accent} reduced={reduced} />
       ))}
     </ul>
   );

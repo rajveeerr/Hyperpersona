@@ -3,6 +3,8 @@ import { tw } from "@/shared/ui/tw";
 
 type CatalogToolbarProps = {
   categories: Category[];
+  /** When false, the category control is omitted (e.g. `/search` where scope is the query string). */
+  showCategory?: boolean;
   activeCategory: string;
   activeSort: string;
   /** When product list is still fetching, avoid showing “0 results” in the summary line. */
@@ -31,14 +33,14 @@ const deptPillIdle =
   "min-h-9 min-w-[2.75rem] cursor-pointer rounded-pill border border-dashed border-ink/40 bg-white/70 px-3.5 py-2 text-[0.75rem] font-medium leading-snug text-ink shadow-none transition-[background-color,border-color,box-shadow,color] hover:border-ink/55 hover:bg-white";
 
 /**
- * Selected — **exclusive** class string (do not concatenate with `deptPillIdle` or Tailwind can drop `bg-ink`
- * while keeping `text-white`, which matches `text-ink` on cream). Use literal ink hex from `app.css` token.
+ * Selected — cream + ink ring (same vocabulary as PDP `optionSelected` / `tw.buttonEditorialBag`), not solid black.
  */
 const deptPillSelected =
-  "min-h-9 min-w-[2.75rem] cursor-pointer rounded-pill border-2 border-[#221c17] bg-[#221c17] px-3.5 py-2 text-center text-[0.75rem] font-semibold leading-snug text-white shadow-[0_8px_24px_rgba(34,28,23,0.18)] transition-[background-color,border-color,box-shadow] hover:bg-[#1a1612] hover:text-white";
+  "min-h-9 min-w-[2.75rem] cursor-pointer rounded-pill border border-ink/30 bg-surface-strong px-3.5 py-2 text-center text-[0.75rem] font-semibold leading-snug text-ink shadow-[0_6px_18px_rgba(34,28,23,0.06)] ring-1 ring-inset ring-white/65 transition-[background-color,border-color,box-shadow] hover:border-ink/40";
 
 export const CatalogToolbar = ({
   categories,
+  showCategory = true,
   activeCategory,
   activeSort,
   resultsLoading = false,
@@ -63,39 +65,48 @@ export const CatalogToolbar = ({
 
   return (
     <div className="grid gap-8 border-b border-outline/15 pb-8 sm:gap-10 sm:pb-10">
-      <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between sm:gap-10">
-        <div className="grid w-full max-w-md gap-0.5">
-          <label htmlFor="catalog-category" className={labelSerif}>
-            Category
-          </label>
-          <div className="relative mt-2 inline-block w-full max-w-[min(100%,14rem)]">
-            <select
-              id="catalog-category"
-              value={activeCategory}
-              onChange={(e) => onCategoryChange(e.target.value)}
-              className={dashedSelect}
-            >
-              <option value="">All categories</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.slug}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-            <span
-              className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[0.6rem] leading-none text-ink/45"
-              aria-hidden
-            >
-              ▾
-            </span>
+      <div
+        className={`flex flex-col gap-8 sm:flex-row sm:items-end sm:gap-10 ${showCategory ? "sm:justify-between" : "sm:justify-start"}`}
+      >
+        {showCategory ? (
+          <div className="grid w-full max-w-md gap-0.5">
+            <label htmlFor="catalog-category" className={labelSerif}>
+              Category
+            </label>
+            <div className="relative mt-2 inline-block w-full max-w-[min(100%,14rem)]">
+              <select
+                id="catalog-category"
+                value={activeCategory}
+                onChange={(e) => onCategoryChange(e.target.value)}
+                className={dashedSelect}
+              >
+                <option value="">All categories</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.slug}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              <span
+                className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[0.6rem] leading-none text-ink/45"
+                aria-hidden
+              >
+                ▾
+              </span>
+            </div>
           </div>
-        </div>
+        ) : null}
 
-        <div className="grid w-full max-w-xs gap-0.5 sm:text-right">
-          <label htmlFor="catalog-sort" className={`${labelSerif} sm:ml-auto sm:max-w-[14rem]`}>
+        <div className={`grid w-full max-w-xs gap-0.5 ${showCategory ? "sm:text-right" : ""}`}>
+          <label
+            htmlFor="catalog-sort"
+            className={`${labelSerif} ${showCategory ? "sm:ml-auto sm:max-w-[14rem]" : ""}`}
+          >
             Sort by
           </label>
-          <div className="relative mt-2 inline-block w-full max-w-[min(100%,14rem)] sm:ml-auto">
+          <div
+            className={`relative mt-2 inline-block w-full max-w-[min(100%,14rem)] ${showCategory ? "sm:ml-auto" : ""}`}
+          >
             <select
               id="catalog-sort"
               value={activeSort}
@@ -140,7 +151,7 @@ export const CatalogToolbar = ({
                   onClick={() => onVerticalChange(v.value)}
                 >
                   {v.label}
-                  <span className={selected ? "font-medium text-white/90" : "text-ink/45"}>
+                  <span className={selected ? "font-medium text-ink/50" : "text-ink/45"}>
                     {" "}
                     ({v.count})
                   </span>
@@ -168,7 +179,7 @@ export const CatalogToolbar = ({
               onClick={() => onFreeDeliveryToggle(!freeDeliveryOnly)}
             >
               Free delivery only
-              <span className={freeDeliveryOnly ? "font-medium text-white/90" : "text-ink/45"}>
+              <span className={freeDeliveryOnly ? "font-medium text-ink/50" : "text-ink/45"}>
                 {" "}
                 ({freeCount})
               </span>

@@ -26,10 +26,31 @@ export function CatalogToolbarSkeleton() {
   );
 }
 
+/** Search results toolbar: sort + facet rows without category (matches `CatalogToolbar` rhythm). */
+export function SearchFiltersToolbarSkeleton() {
+  return (
+    <div className="grid gap-6 border-b border-outline/15 pb-8 sm:gap-8" aria-hidden>
+      <div className="grid w-full max-w-xs gap-2 sm:justify-self-start">
+        <div className={`h-5 w-20 ${pulse}`} />
+        <div className={`h-10 w-full max-w-[min(100%,14rem)] rounded-pill ${pulse}`} />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <div className={`h-9 w-14 rounded-pill ${pulse}`} />
+        <div className={`h-9 w-36 rounded-pill ${pulse}`} />
+        <div className={`h-9 w-32 rounded-pill ${pulse}`} />
+      </div>
+      <div className={`h-9 max-w-xs rounded-pill ${pulse}`} />
+      <div className={`h-4 w-72 max-w-full ${pulse}`} />
+    </div>
+  );
+}
+
 function SkeletonCatalogCard() {
   return (
     <div className="flex w-full max-w-[20rem] flex-col items-center px-2 py-2" aria-hidden>
-      <div className={`mb-6 aspect-4/5 w-full max-w-[18rem] ${pulse}`} />
+      <div
+        className={`mb-6 h-[min(13.5rem,min(52vw,40svh))] w-full max-w-[18rem] sm:h-[min(14.5rem,min(44vw,38svh))] lg:h-[min(15.5rem,min(30vw,36svh))] ${pulse}`}
+      />
       <div className={`mb-2 h-4 w-[85%] ${pulse}`} />
       <div className={`h-3 w-16 ${pulse}`} />
     </div>
@@ -60,7 +81,9 @@ export function PdpSuggestionsRailsSkeleton() {
             {[0, 1, 2].map((j) => (
               <div key={j} className={`${catalogSuggestionsCell} ${catalogGridCellEdgeClass}`}>
                 <div className="flex w-full max-w-[20rem] flex-col items-center gap-3">
-                  <div className={`aspect-4/5 w-full max-w-[16rem] ${pulse}`} />
+                  <div
+                    className={`h-[min(12rem,min(48vw,36svh))] w-full max-w-[16rem] sm:h-[min(13rem,min(40vw,34svh))] lg:h-[min(14rem,min(26vw,32svh))] ${pulse}`}
+                  />
                   <div className={`h-3 w-[80%] ${pulse}`} />
                   <div className={`h-3 w-12 ${pulse}`} />
                 </div>

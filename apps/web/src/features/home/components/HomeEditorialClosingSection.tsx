@@ -2,8 +2,8 @@ import { Link } from "react-router-dom";
 
 import { tw } from "@/shared/ui/tw";
 
-/** Same RGBA cutout as `EditorialHero` — bedding product used above the fold on `/`. */
-const PRE_FOOTER_IMG = "/hero-product-cutout.webp";
+/** Distinct from `EditorialHero` throw — front studio jacket packshot (RGBA), same grid vocabulary as `/catalog`. */
+const PRE_FOOTER_IMG = "/collection-new/grid-jacket.webp";
 
 const navQuiet =
   "text-[0.8125rem] font-medium tracking-body text-ink/80 transition-opacity hover:opacity-60 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
@@ -23,9 +23,9 @@ export function HomeEditorialClosingSection() {
           <figure className="w-full max-w-[min(18rem,72vw)] shrink-0">
             <img
               src={PRE_FOOTER_IMG}
-              alt="Highland organic matelasse throw, folded — product cutout"
-              width={900}
-              height={785}
+              alt="Quilted jacket, front studio packshot — product cutout"
+              width={1000}
+              height={1000}
               loading="lazy"
               decoding="async"
               className="mx-auto h-auto w-full max-w-[16rem] object-contain drop-shadow-[0_28px_56px_rgba(34,28,23,0.1)] sm:max-w-[18rem]"

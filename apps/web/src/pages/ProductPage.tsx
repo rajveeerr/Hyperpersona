@@ -7,9 +7,15 @@ import { useCartStore } from "@/features/cart/store";
 import { useTrackEvent } from "@/features/events/useTrackEvent";
 import { ProductSuggestionsSection } from "@/features/recommendations/components/ProductSuggestionsSection";
 import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
+import { pushToast } from "@/features/toast/store";
 import { useWishlistStore } from "@/features/wishlist/store";
 import { apiClient } from "@/shared/api/client";
 import { tw } from "@/shared/ui/tw";
+
+function truncateToastLabel(name: string, max = 44) {
+  const t = name.trim();
+  return t.length <= max ? t : `${t.slice(0, max - 1)}…`;
+}
 
 export function ProductPage() {
   const { slug = "" } = useParams();
@@ -50,7 +56,7 @@ export function ProductPage() {
   const product = productQuery.data;
 
   return (
-    <div className={tw.stackLg}>
+    <div className="relative isolate flex flex-col gap-0">
       <EditorialProductDetail
         product={product}
         wishlisted={hasWishlist(product.id)}
@@ -59,6 +65,11 @@ export function ProductPage() {
           if (quantity > 1) {
             updateQuantity(product.id, quantity);
           }
+          pushToast(
+            quantity > 1
+              ? `Bag updated · ${truncateToastLabel(product.name)} ×${quantity}`
+              : `Added to bag · ${truncateToastLabel(product.name)}`,
+          );
           track({
             customer_id: "demo-customer-1",
             event_type: "add_to_cart",
@@ -76,6 +87,9 @@ export function ProductPage() {
         onWishlistToggle={() => {
           const removing = hasWishlist(product.id);
           toggleWishlist(product.id);
+          pushToast(
+            removing ? `Removed from wishlist · ${truncateToastLabel(product.name)}` : `Saved to wishlist · ${truncateToastLabel(product.name)}`,
+          );
           track({
             customer_id: "demo-customer-1",
             event_type: removing ? "wishlist_remove" : "wishlist_add",

@@ -83,6 +83,18 @@ export const tw = {
     "inline-flex cursor-pointer items-center border-0 bg-transparent pb-0.5 text-left text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink underline decoration-ink/30 underline-offset-[0.38rem] transition-opacity duration-150 hover:opacity-65 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
   buttonGhost:
     "inline-flex min-h-12 cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-pill border border-outline bg-transparent px-[1.2rem] text-ink transition-transform duration-150 ease-out hover:-translate-y-px focus-visible:-translate-y-px",
+
+  /**
+   * Primary commerce CTA on cream radial canvases — glass pill, not solid ink (`tw.button`).
+   * Used by `EditorialHero` and PDP “Add to bag” beside `qtyStepper`.
+   */
+  buttonEditorialBag:
+    "inline-flex min-h-12 cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-pill border border-ink/30 bg-surface-strong/40 px-6 text-[0.8125rem] font-semibold tracking-wider text-ink shadow-[0_8px_22px_rgba(62,40,27,0.06)] backdrop-blur-[6px] transition-transform duration-150 ease-out hover:-translate-y-px hover:border-ink/45 hover:bg-surface-strong/70 focus-visible:-translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+
+  /** Same glass vocabulary as `buttonEditorialBag`, compact height — consent toast, tight stacks. */
+  buttonEditorialBagSm:
+    "inline-flex min-h-10 cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-pill border border-ink/30 bg-surface-strong/40 px-4 text-sm font-semibold tracking-wider text-ink shadow-[0_6px_18px_rgba(62,40,27,0.06)] backdrop-blur-[6px] transition-transform duration-150 ease-out hover:-translate-y-px hover:border-ink/45 hover:bg-surface-strong/70 focus-visible:-translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:pointer-events-none disabled:opacity-55",
+
   buttonSecondary:
     "inline-flex min-h-12 cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-pill border-0 bg-success px-[1.2rem] text-white transition-transform duration-150 ease-out hover:-translate-y-px focus-visible:-translate-y-px",
   buttonSmall: "min-h-10 px-4 text-sm",
@@ -112,4 +124,12 @@ export const tw = {
   /** Navbar search submit — explicit affordance (pill, not plain text) */
   navSearchSubmit:
     "inline-flex shrink-0 cursor-pointer items-center justify-center rounded-pill border border-outline bg-surface-strong px-3 py-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-ink transition-colors duration-150 hover:border-ink hover:bg-ink hover:text-white",
+
+  /**
+   * Quiet editorial mat on body canvas — profile, consent, explainability (`UI_REFERENCE.md`).
+   * Pair with `labPanelPad`.
+   */
+  labPanel:
+    "rounded-[max(var(--radius-inner),1rem)] border border-outline/35 bg-surface-strong/75 shadow-[0_1px_0_rgba(34,28,23,0.06)] ring-1 ring-inset ring-white/55 backdrop-blur-[10px]",
+  labPanelPad: "px-6 py-7 sm:px-8 sm:py-8",
 } as const;

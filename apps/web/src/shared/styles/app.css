@@ -131,4 +131,24 @@
       animation: none;
     }
   }
+
+  /** Main route body — subtle opacity snap on navigation (no transform → less vestibular risk). */
+  @keyframes outlet-route-snap {
+    from {
+      opacity: 0.91;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .outlet-route-snap {
+    animation: outlet-route-snap 0.16s ease-out both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .outlet-route-snap {
+      animation: none;
+    }
+  }
 }

@@ -1,17 +1,15 @@
-import { Outlet } from "react-router-dom";
-
+import { OutletShell } from "@/app/OutletShell";
 import { ScrollToTop } from "@/app/ScrollToTop";
 import { ConsentBanner } from "@/features/consent/components/ConsentBanner";
 import { DebugEventPanel } from "@/features/events/debug/DebugEventPanel";
+import { ToastViewport } from "@/features/toast/components/ToastViewport";
 import { PageViewTracker } from "@/features/events/PageViewTracker";
 import { Footer } from "@/shared/ui/Footer";
 import { Header } from "@/shared/ui/Header";
 import { PageShell } from "@/shared/ui/PageShell";
 import { tw } from "@/shared/ui/tw";
 
-/** Reserves space for fixed header (stacked mobile vs single-row md+). */
 function HeaderLayoutSpacer() {
-  /* Same fill as nav + hero so body gradient never shows in this strip */
   return <div aria-hidden className={`${tw.heroCanvas} h-35 shrink-0 md:h-[5.65rem]`} />;
 }
 
@@ -31,10 +29,11 @@ export function AppLayout() {
       <PageShell>
         <ScrollToTop />
         <main id="main-content" className={`${tw.page} ${tw.layoutGutterX} scroll-mt-22`}>
-          <Outlet />
+          <OutletShell />
         </main>
       </PageShell>
       <Footer />
+      <ToastViewport />
       <DebugEventPanel />
     </div>
   );

@@ -1,12 +1,12 @@
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 import { useLocation } from "react-router-dom";
 
-/** Scroll window to top on route or query-string change (catalog pagination, filters, PDP slug). */
+/** Scroll window to top on route or query-string change — `useLayoutEffect` runs before paint to reduce scroll flash. */
 export function ScrollToTop() {
   const { pathname, search } = useLocation();
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [pathname, search]);
 
   return null;

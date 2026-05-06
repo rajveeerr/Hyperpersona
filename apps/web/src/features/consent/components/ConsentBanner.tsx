@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useReducer, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
@@ -7,92 +7,110 @@ import { useTrackEvent } from "@/features/events/useTrackEvent";
 import { apiClient } from "@/shared/api/client";
 import { tw } from "@/shared/ui/tw";
 
-/** Fixed below nav, top-right on md+ (toast) — avoids covering hero center / catalog titles */
-const toastShell =
-  "fixed left-3 right-3 top-[8.875rem] z-40 mx-auto w-auto max-w-md overflow-visible sm:left-auto sm:right-5 sm:mx-0 sm:max-w-sm md:top-[5.85rem]";
+const SESSION_DISMISS_PREFIX = "hyperpersona-consent-banner-dismissed";
 
-const pop =
-  "isolate w-full rounded-[1.25rem] border border-outline/25 bg-white/88 px-4 py-3.5 shadow-[0_20px_56px_rgba(62,40,27,0.07)] backdrop-blur-md sm:px-5 sm:py-4";
-
-/** Past this offset = toast dismissed; back at or above top = toast visible again. */
-const SCROLL_DISMISS_PX = 4;
-
-const toastMotionTransition = {
-  type: "spring",
-  stiffness: 380,
-  damping: 32,
-  mass: 0.78,
-} as const;
-
-const toastMotionVariants = {
-  /** Shown on load — anchored in the fixed slot. */
-  idle: { x: 0, opacity: 1, scale: 1 },
-  /** User scrolled: exits toward the right and collapses out of view. */
-  dismissed: { x: 140, opacity: 0, scale: 0.96 },
-};
-
-/** React-only — avoids pulling hooks from framer-motion’s React resolution under Vite. */
-function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const sync = () => setReduced(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-  return reduced;
+function dismissStorageKey(personalizationOn: boolean) {
+  return `${SESSION_DISMISS_PREFIX}:${personalizationOn ? "on" : "off"}`;
 }
 
-function ConsentToastShell({ children }: { children: React.ReactNode }) {
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const [scrolledPast, setScrolledPast] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const y = window.scrollY || document.documentElement.scrollTop;
-    return y > SCROLL_DISMISS_PX;
-  });
+function readDismissed(personalizationOn: boolean) {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(dismissStorageKey(personalizationOn)) === "1";
+  } catch {
+    return false;
+  }
+}
 
-  useLayoutEffect(() => {
-    const sync = () => {
-      const y = window.scrollY || document.documentElement.scrollTop;
-      setScrolledPast(y > SCROLL_DISMISS_PX);
-    };
-    sync();
-    window.addEventListener("scroll", sync, { passive: true });
-    return () => window.removeEventListener("scroll", sync);
-  }, []);
+/**
+ * Viewport anchor only — **no transform** on this node (Safari quirk: `transform` on `fixed` breaks viewport pinning).
+ * Exit motion lives on an inner `motion.div`.
+ */
+const toastAnchor =
+  "pointer-events-none fixed top-[8.875rem] z-40 w-[min(100%,22rem)] max-w-md md:top-[5.85rem] end-3 sm:end-5";
 
-  const instant = prefersReducedMotion;
+const pop =
+  "relative isolate w-full rounded-[1.15rem] border border-outline/20 bg-white/72 px-4 py-3 pr-11 shadow-[0_10px_36px_rgba(62,40,27,0.045)] backdrop-blur-sm sm:px-4 sm:py-3.5 sm:pr-12";
+
+function DismissNoticeButton({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onDismiss}
+      className="absolute right-2.5 top-2.5 inline-flex size-8 items-center justify-center rounded-md text-ink/45 transition-colors hover:bg-ink/6 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      aria-label="Dismiss personalization notice for this session"
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+        <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+}
+
+type NudgePanelProps = {
+  personalizationOn: boolean;
+  onExitComplete: () => void;
+  children: (requestClose: () => void) => React.ReactNode;
+};
+
+function ConsentNudgePanel({ personalizationOn, onExitComplete, children }: NudgePanelProps) {
+  const reduceMotion = useReducedMotion();
+  const [open, setOpen] = useState(true);
+
+  useEffect(() => {
+    setOpen(true);
+  }, [personalizationOn]);
+
+  const handleDismiss = () => {
+    setOpen(false);
+  };
 
   return (
-    <motion.div
-      className={toastShell}
-      role="status"
-      aria-live="polite"
-      initial={false}
-      animate={scrolledPast ? "dismissed" : "idle"}
-      variants={toastMotionVariants}
-      transition={
-        instant
-          ? { duration: 0.14, ease: "easeInOut" }
-          : toastMotionTransition
-      }
-      style={{ pointerEvents: scrolledPast ? "none" : "auto" }}
-    >
-      {children}
-    </motion.div>
+    <div className={toastAnchor}>
+      <AnimatePresence onExitComplete={onExitComplete}>
+        {open ? (
+          <motion.div
+            key={personalizationOn ? "nudge-on" : "nudge-off"}
+            className="pointer-events-auto w-full"
+            role="status"
+            aria-live="polite"
+            initial={false}
+            exit={
+              reduceMotion
+                ? { opacity: 0 }
+                : { opacity: 0, x: 56, scale: 0.97 }
+            }
+            transition={
+              reduceMotion
+                ? { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
+                : { type: "spring", stiffness: 420, damping: 30, mass: 0.72 }
+            }
+          >
+            {children(handleDismiss)}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
   );
 }
 
 export function ConsentBanner() {
   const queryClient = useQueryClient();
   const track = useTrackEvent();
+  const [, forceRerender] = useReducer((c: number) => c + 1, 0);
   const consentQuery = useQuery({
     queryKey: ["consent"],
     queryFn: apiClient.getConsent,
   });
+
+  const persistDismiss = (personalizationOn: boolean) => {
+    try {
+      window.sessionStorage.setItem(dismissStorageKey(personalizationOn), "1");
+    } catch {
+      /* private mode / quota */
+    }
+    forceRerender();
+  };
 
   const updateConsent = useMutation({
     mutationFn: (scopes: string[]) => apiClient.updateConsent(scopes),
@@ -106,51 +124,60 @@ export function ConsentBanner() {
   }
 
   const hasPersonalization = consentQuery.data.scopes.includes("personalization");
+  if (readDismissed(hasPersonalization)) {
+    return null;
+  }
 
   if (hasPersonalization) {
     return (
-      <ConsentToastShell>
-        <div className={`${pop} ring-1 ring-success/15`}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-            <span className="text-pretty text-xs font-medium leading-snug tracking-[0.01em] text-ink/92 sm:text-[0.8125rem] sm:leading-relaxed">
-              Personalization is active ranking and search may use consented activity.
-            </span>
-            <Link
-              to="/consent"
-              className={`${tw.buttonGhost} ${tw.buttonSmall} shrink-0 self-start border-ink/25 sm:self-auto`}
-            >
-              Review controls
-            </Link>
+      <ConsentNudgePanel personalizationOn onExitComplete={() => persistDismiss(true)}>
+        {(requestClose) => (
+          <div className={`${pop} ring-1 ring-success/12`}>
+            <DismissNoticeButton onDismiss={requestClose} />
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+              <span className="text-pretty text-[0.8125rem] font-medium leading-relaxed tracking-body text-ink/88">
+                Personalization is on ranking and search may use consented activity.
+              </span>
+              <Link
+                to="/consent"
+                className={`${tw.buttonGhost} ${tw.buttonSmall} shrink-0 self-start border-ink/20 sm:self-auto`}
+              >
+                Review controls
+              </Link>
+            </div>
           </div>
-        </div>
-      </ConsentToastShell>
+        )}
+      </ConsentNudgePanel>
     );
   }
 
   return (
-    <ConsentToastShell>
-      <div className={pop}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <span className="text-pretty text-xs leading-snug text-ink sm:text-sm sm:leading-relaxed">
-            Personalization is off, so you are seeing generic ranking and recommendation rails.
-          </span>
-          <button
-            type="button"
-            className={`${tw.button} ${tw.buttonSmall} shrink-0 self-start sm:self-auto`}
-            onClick={() => {
-              updateConsent.mutate(["analytics", "personalization"]);
-              track({
-                customer_id: "demo-customer-1",
-                event_type: "consent_updated",
-                payload: { scopes: ["analytics", "personalization"] },
-                consent_scope: ["analytics", "personalization"],
-              });
-            }}
-          >
-            Enable demo consent
-          </button>
+    <ConsentNudgePanel personalizationOn={false} onExitComplete={() => persistDismiss(false)}>
+      {(requestClose) => (
+        <div className={pop}>
+          <DismissNoticeButton onDismiss={requestClose} />
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <span className="text-pretty text-[0.8125rem] leading-relaxed tracking-body text-ink/88">
+              Personalization is off—generic ranking and rails until you enable the demo scope.
+            </span>
+            <button
+              type="button"
+              className={`${tw.buttonEditorialBagSm} shrink-0 self-start sm:self-auto`}
+              onClick={() => {
+                updateConsent.mutate(["analytics", "personalization"]);
+                track({
+                  customer_id: "demo-customer-1",
+                  event_type: "consent_updated",
+                  payload: { scopes: ["analytics", "personalization"] },
+                  consent_scope: ["analytics", "personalization"],
+                });
+              }}
+            >
+              Enable demo consent
+            </button>
+          </div>
         </div>
-      </div>
-    </ConsentToastShell>
+      )}
+    </ConsentNudgePanel>
   );
 }

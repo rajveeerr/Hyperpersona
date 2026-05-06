@@ -36,6 +36,9 @@ export function Header() {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const query = String(data.get("q") ?? "").trim();
+    if (!query) {
+      return;
+    }
     track({
       customer_id: "demo-customer-1",
       event_type: "search_submit",
@@ -54,6 +57,7 @@ export function Header() {
       >
         <Link
           to="/"
+          prefetch="intent"
           className={`${tw.displayWordmarkNav} text-[1.35rem] sm:text-[1.5rem] md:justify-self-start`}
         >
           hyperpersona
@@ -63,16 +67,16 @@ export function Header() {
           className="flex flex-wrap justify-center gap-x-6 gap-y-2 md:justify-center"
           aria-label="Primary"
         >
-          <NavLink to="/catalog" className="nav-link-quiet">
+          <NavLink to="/catalog" prefetch="intent" className="nav-link-quiet">
             Catalog
           </NavLink>
-          <NavLink to="/profile" className="nav-link-quiet">
+          <NavLink to="/profile" prefetch="intent" className="nav-link-quiet">
             Profile
           </NavLink>
-          <NavLink to="/consent" className="nav-link-quiet">
+          <NavLink to="/consent" prefetch="intent" className="nav-link-quiet">
             Consent
           </NavLink>
-          <NavLink to="/wishlist" className="nav-link-quiet">
+          <NavLink to="/wishlist" prefetch="intent" className="nav-link-quiet">
             Wishlist ({wishlistCount})
           </NavLink>
         </nav>
@@ -99,6 +103,7 @@ export function Header() {
           </form>
           <Link
             to="/cart"
+            prefetch="intent"
             className="nav-link-quiet inline-flex items-center gap-1.5 border-0 bg-transparent no-underline"
           >
             <BagIcon />

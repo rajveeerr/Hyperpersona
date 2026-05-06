@@ -13,6 +13,29 @@ The current visual references live in `apps/web/design-inspo/` and include:
 
 These references suggest a strong direction similar to a luxury editorial home/lifestyle commerce brand rather than a dense marketplace UI.
 
+Additional **screenshot crops** (catalog grids, bedding PDP tiles, neutral apparel grids) may live in:
+
+- `apps/web/design-inspo/` — brand-direction stills and motion stills already tracked here
+- Image attachments you drop into the IDE chat for the session (same visual vocabulary: isolated packshots, dashed filters, serif hierarchy)
+
+Use those crops when judging whether a new raster belongs on the canvas.
+
+## Transparent product imagery (hero, PDP, footer mark, rails, empty states)
+
+These surfaces read “luxury catalog” only when photography matches the reference vibe:
+
+| Criterion | Direction |
+|-----------|-----------|
+| **Format** | **RGBA** PNG or WebP so the **page gradient/canvas shows through** — same treatment as `hero-product-cutout.webp`, `footer-product-mark.webp`, and `collection-new/grid-*.webp`. |
+| **Subject** | Studio **packshots**: folded textiles, flat apparel front-on, stacked pillows — **no environmental scene**. Soft cast shadow under the product is fine; busy lifestyle backgrounds are not. |
+| **Palette** | Warm neutrals — ivory, oat, clay, denim blue, moss, charcoal stripe — aligned with `@theme` ink/canvas/accent (see **Initial Token Direction** below). |
+| **Resolution** | Hero / focal illustrations: long edge roughly **900–1400px**. Grid tiles and marks: **600–1000px** after crop. Encode WebP with alpha (`cwebp -alpha_q …`) like `collection-new/README.md`. |
+| **Sources** | Prefer **brand-owned** shots. Stock pipelines already used in-repo: **[PNGimg](https://pngimg.com)** (transparent PNGs → WebP), **[Unsplash](https://unsplash.com/license)** (`lifestyle-model.webp`). Always record **license + URL + filename** next to the asset (see `collection-new/README.md`). |
+
+### Empty / error routes
+
+- **`public/not-found-product-cutout.webp`** — bath towel packshot (vertical textile, distinct from PDP hero throw + `collection-new/grid-*`); source PNG `https://pngimg.com/uploads/towel/towel_PNG1.png`, re-encoded to RGBA WebP (~q88). **PNGimg terms apply**; swap for brand packshot when available.
+
 ## What The References Emphasize
 
 ### Visual language
@@ -101,6 +124,10 @@ These references suggest a strong direction similar to a luxury editorial home/l
 - sparse use of motion
 - fades and lifts only, no flashy transforms
 - **Animations:** implement interactive motion with **Framer Motion** (`framer-motion` — `motion.*` components), not CSS-only transitions, so springs and **`prefers-reduced-motion`** handling stay consistent (`FE_PLAN` — Motion / animation)
+
+#### Motion roadmap (premium feel — later phases)
+
+Phase **1** (see `FE_PLAN.md`) optimizes for a **credible shell, core flows, contracts, and performance** — not maximum decorative motion. **Phase 4 — visual refinement** is the planned home for a fuller **motion language**: staged section entrances, PDP gallery/chip transitions, cart/wishlist affordances, and richer route continuity — always with Framer Motion + reduced-motion fallbacks. Until then, treat the current Motion touchpoints (e.g. consent banner, catalog tile hover, outlet route transition) as **baseline**; avoid duplicating the same effects in ad hoc CSS keyframes.
 
 ## Implementation Guidance
 

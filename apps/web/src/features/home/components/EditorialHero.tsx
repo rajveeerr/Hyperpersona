@@ -82,7 +82,7 @@ export const EditorialHero = () => {
 
           <div className="min-w-0 text-left lg:text-left">
             <p className={`max-w-md text-pretty text-sm leading-relaxed sm:text-[0.9375rem] sm:leading-relaxed ${tw.muted}`}>
-              The soft, rippled weave keeps a pliable drape that settles in over time—light enough for warm nights,
+              The soft, rippled weave keeps a pliable drape that settles in over time light enough for warm nights,
               substantial enough when the air turns cool.
             </p>
             <div className="mt-6 flex min-w-0 flex-wrap items-center gap-3 sm:gap-4">
@@ -105,10 +105,7 @@ export const EditorialHero = () => {
                   +
                 </button>
               </div>
-              <Link
-                to="/catalog"
-                className={`${tw.buttonGhost} min-h-12 border-ink/30 bg-surface-strong/40 px-6 text-[0.8125rem] font-semibold tracking-wider shadow-[0_8px_22px_rgba(62,40,27,0.06)] backdrop-blur-[6px] hover:border-ink/45 hover:bg-surface-strong/70`}
-              >
+              <Link to="/catalog" className={tw.buttonEditorialBag}>
                 Add to bag — $98
               </Link>
             </div>
