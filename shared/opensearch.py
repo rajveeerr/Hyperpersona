@@ -1,8 +1,10 @@
 """OpenSearch-backed vector store. Implements VectorStoreProtocol.
 
 One class, two backends:
-  - Local OpenSearch: HTTP, no auth (dev container at port 9200)
-  - AWS OpenSearch Serverless (AOSS): HTTPS + SigV4 auth, port 443
+  - Local OpenSearch: HTTP, no auth (dev container at port 9200).
+  - AWS OpenSearch Serverless (AOSS): HTTPS + SigV4 auth, port 443. AOSS
+    rejects `refresh=*` query params and client-supplied document IDs in
+    VECTORSEARCH collections, so the AOSS branch drops both.
 
 Lazy connection — opensearch-py doesn't actually hit the cluster until
 the first request, so constructing an OpenSearchClient is safe even
@@ -11,7 +13,7 @@ before the cluster is up.
 
 import logging
 
-from opensearchpy import OpenSearch
+from opensearchpy import OpenSearch, RequestsHttpConnection
 from opensearchpy.exceptions import NotFoundError, OpenSearchException
 
 log = logging.getLogger(__name__)
@@ -26,24 +28,31 @@ class OpenSearchClient:
         aoss: bool = False,
         region: str = "us-east-1",
     ) -> None:
-        self._is_aoss = aoss
+        self.is_aoss = aoss
         if aoss:
             # OpenSearch Serverless: SigV4 with the running role's creds.
             # boto3.Session() picks up AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY
-            # + AWS_SESSION_TOKEN from env automatically.
+            # + AWS_SESSION_TOKEN from env automatically. Timeout is 60s for
+            # cold-start tolerance — first request to a freshly-warmed AOSS
+            # collection can take ~30-40s.
             import boto3
-            from opensearchpy import AWSV4SignerAuth, RequestsHttpConnection
+            from opensearchpy import AWSV4SignerAuth
 
             credentials = boto3.Session().get_credentials()
-            auth = AWSV4SignerAuth(credentials, region, "aoss")
+            if credentials is None:
+                raise RuntimeError(
+                    "AOSS requested but no AWS credentials found in environment "
+                    "(AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY[/AWS_SESSION_TOKEN])"
+                )
             self.client = OpenSearch(
                 hosts=[{"host": host, "port": port}],
-                http_auth=auth,
+                http_auth=AWSV4SignerAuth(credentials, region, "aoss"),
                 use_ssl=True,
                 verify_certs=True,
                 connection_class=RequestsHttpConnection,
+                http_compress=True,
                 pool_maxsize=20,
-                timeout=30,
+                timeout=60,
             )
         else:
             self.client = OpenSearch(
@@ -63,16 +72,16 @@ class OpenSearchClient:
         metadata: dict,
     ) -> None:
         body = {"vector": vector, **metadata}
-        if self._is_aoss:
-            # AOSS VECTORSEARCH rejects client-supplied IDs — the only
-            # accepted shape is POST /{index}/_doc with no ID, AOSS
-            # auto-generates. We preserve the caller's intended doc_id
-            # as `external_id` so search-time linkage works if needed.
-            # Trade-off: retries create duplicate docs instead of
-            # overwriting. ACE ranking dedupes facts by content + recency
-            # so the practical impact is small.
-            body["external_id"] = doc_id
-            self.client.index(index=collection, body=body)
+        if self.is_aoss:
+            # AOSS VECTORSEARCH rejects client-supplied IDs (not via _doc, not
+            # via _bulk) — the only accepted shape is POST /{index}/_doc with
+            # no ID. AOSS auto-generates the _id and consumers already prefer
+            # metadata fields (slug, customer_id) over the doc id, so the
+            # generated id is functionally fine. Trade-off: retries create
+            # duplicate docs; reconcile_products dedupes by slug.
+            resp = self.client.index(index=collection, body=body)
+            if resp.get("result") not in {"created", "updated"}:
+                raise OpenSearchException(f"AOSS index errored: {resp}")
         else:
             self.client.index(
                 index=collection,
@@ -129,7 +138,7 @@ class OpenSearchClient:
                 "index": collection,
                 "body": {"query": {"term": {"customer_id": customer_id}}},
             }
-            if not self._is_aoss:
+            if not self.is_aoss:
                 kwargs["refresh"] = True
             self.client.delete_by_query(**kwargs)
         except (NotFoundError, OpenSearchException) as e:

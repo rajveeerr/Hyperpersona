@@ -9,6 +9,7 @@ import {
   type DetailTab,
 } from "@/features/catalog/components/pdp/pdpShared";
 import type { SwatchId } from "@/features/catalog/pdpSwatches";
+import { productSnapshot } from "@/features/events/payloads";
 import { useTrackEvent } from "@/features/events/useTrackEvent";
 import type { Product } from "@/shared/api/contracts";
 import { tw } from "@/shared/ui/tw";
@@ -16,8 +17,14 @@ import { tw } from "@/shared/ui/tw";
 type EditorialProductDetailProps = {
   product: Product;
   wishlisted: boolean;
+  /**
+   * Receives quantity + the selected variant context (color/size/storage/swatch).
+   * Callers should forward `variantContext` into both the cart mutation and
+   * the `add_to_cart` event so per-variant signals reach the worker.
+   */
   onAddToCart: (quantity: number, variantContext?: Record<string, string>) => void;
-  onWishlistToggle: () => void;
+  /** Same variant context for wishlist add — kept symmetric with cart. */
+  onWishlistToggle: (variantContext?: Record<string, string>) => void;
 };
 
 export function EditorialProductDetail({
@@ -53,27 +60,39 @@ export function EditorialProductDetail({
     (next: DetailTab) => {
       setTab(next);
       track({
-        customer_id: "demo-customer-1",
         event_type: "pdp_tab_selected",
-        payload: { productId: product.id, slug: product.slug, tab: next },
+        payload: {
+          ...productSnapshot(product),
+          productId: product.id,
+          slug: product.slug,
+          tab: next,
+        },
         consent_scope: ["analytics", "personalization"],
       });
     },
-    [product.id, product.slug, track],
+    [product, track],
   );
 
   const emitVariant = useCallback(
     (optionKind: "color" | "size" | "storage", optionId: string, optionLabel: string) => {
       track({
-        customer_id: "demo-customer-1",
         event_type: "pdp_variant_selected",
-        payload: { productId: product.id, slug: product.slug, optionKind, optionId, optionLabel },
+        payload: {
+          ...productSnapshot(product),
+          productId: product.id,
+          slug: product.slug,
+          optionKind,
+          optionId,
+          optionLabel,
+        },
         consent_scope: ["analytics", "personalization"],
       });
     },
-    [product.id, product.slug, track],
+    [product, track],
   );
 
+  // The spec `product_view` event is fired from `ProductPage` (with spec payload).
+  // This effect is now just internal-state reset on slug change.
   useEffect(() => {
     setColorId(product.colorOptions?.[0]?.id ?? "");
     setSizeId(product.sizeOptions?.[0]?.id ?? "");
@@ -81,19 +100,7 @@ export function EditorialProductDetail({
     setActiveImage(0);
     setQty(1);
     setTab("description");
-
-    track({
-      customer_id: "demo-customer-1",
-      event_type: "product_pdp_viewed",
-      payload: {
-        productId: product.id,
-        slug: product.slug,
-        vertical: product.vertical ?? "general",
-        freeDelivery: product.freeDelivery === true,
-      },
-      consent_scope: ["analytics", "personalization"],
-    });
-  }, [product.freeDelivery, product.id, product.slug, product.vertical, track]);
+  }, [product.id, product.colorOptions, product.sizeOptions, product.storageOptions]);
 
   const variantContext = useMemo(() => {
     const ctx: Record<string, string> = {};
@@ -109,9 +116,15 @@ export function EditorialProductDetail({
       const next = Math.min(20, Math.max(1, q + delta));
       if (next !== q) {
         track({
-          customer_id: "demo-customer-1",
           event_type: "pdp_quantity_changed",
-          payload: { productId: product.id, slug: product.slug, quantity: next },
+          payload: {
+            ...productSnapshot(product),
+            productId: product.id,
+            slug: product.slug,
+            quantity_old: q,
+            quantity_new: next,
+            delta: next - q,
+          },
           consent_scope: ["analytics", "personalization"],
         });
       }
@@ -138,12 +151,15 @@ export function EditorialProductDetail({
 
   const onReportProduct = useCallback(() => {
     track({
-      customer_id: "demo-customer-1",
       event_type: "pdp_report_product_clicked",
-      payload: { productId: product.id, slug: product.slug },
+      payload: {
+        ...productSnapshot(product),
+        productId: product.id,
+        slug: product.slug,
+      },
       consent_scope: ["analytics", "personalization"],
     });
-  }, [product.id, product.slug, track]);
+  }, [product, track]);
 
   return (
     <section

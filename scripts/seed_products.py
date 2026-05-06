@@ -64,6 +64,8 @@ def main() -> None:
         mode=os.getenv("VECTOR_MODE", "opensearch"),
         host=os.getenv("OPENSEARCH_HOST", "opensearch"),
         port=int(os.getenv("OPENSEARCH_PORT", "9200")),
+        aoss_endpoint=os.getenv("AOSS_ENDPOINT", ""),
+        region=os.getenv("AWS_REGION", "us-east-1"),
     )
     snapshot = CatalogSnapshot(dynamo)  # not refreshed; we just need it for the writer
 

@@ -2,6 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(aws *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(npx eslint *)",
+      "WebSearch",
+      "Bash(claude mcp *)",
+      "Bash(uv tool *)",
+      "Bash(npx vitest *)",
+      "Bash(grep -E \"\\\\.\\(py|ts\\)$\")",
+      "Bash(python3 -c ' *)",
       "Bash(MSYS_NO_PATHCONV=1 docker compose exec *)",
       "Bash(MSYS_NO_PATHCONV=1 make verify-bedrock *)",
       "Bash(MSYS_NO_PATHCONV=1 make setup-s3)",

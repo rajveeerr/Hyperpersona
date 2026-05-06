@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/features/auth/useAuth";
+import { setConsentSnapshot } from "@/features/events/tracker";
 import { apiClient } from "@/shared/api/client";
 import { ApiError, type ConsentRecord } from "@/shared/api/contracts";
 
@@ -60,6 +61,13 @@ export function useConsentMutation() {
       // the auth flow already calls `queryClient.clear()` so stale data
       // can't leak across identities.
       queryClient.setQueryData(["consent", customerId], next);
+      // Push the new scopes into the tracker snapshot synchronously so any
+      // per-call `onSuccess` that fires `track(...)` right after this sees
+      // the up-to-date grant. The TrackerConsentBridge would do this on the
+      // next render tick, but per-call onSuccess runs first — without this
+      // line the very-first consent_updated event after a first-time save
+      // is dropped by the intersection gate.
+      setConsentSnapshot(next.scopes);
     },
   });
 }

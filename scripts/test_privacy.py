@@ -4,10 +4,13 @@ Three test users registered per run (random emails so re-running is safe):
 
   main         — full personalization scope; happy path + GDPR delete
   no_consent   — registered but no consent record at all → 403 on POST /events
-  no_scope     — consent with only 'analytics' (no personalization) → 403
+  no_scope     — consent with only 'analytics': analytics-tagged events accepted,
+                 personalization-tagged events 403'd with missing_scope:personalization
 
 Verifies:
-  - Ungated and out-of-scope customers get 403 from /events
+  - Ungated customers get 403 with no_consent_record
+  - Per-event scope intersection: an analytics-only customer can still record
+    analytics events, but events declaring `personalization` are rejected
   - Happy path: ingest 3 events, traces in DDB + OpenSearch + cached offer in Redis
   - DELETE /customer wipes events + consent + vectors + cache for the auth'd user
 
@@ -94,7 +97,7 @@ def main() -> None:
 
     _section("CONSENT GATE — INGESTION")
 
-    # No consent at all → 403
+    # No consent at all → 403 with no_consent_record
     s, b = _request("POST", "/events", {
         "client_event_id": str(uuid.uuid4()),
         "event_type": "page_view",
@@ -102,16 +105,38 @@ def main() -> None:
     }, token=no_consent_token)
     print(f"no-consent customer → POST /events → {s} {b}")
     assert s == 403, f"expected 403 for ungated customer, got {s}"
+    assert (b or {}).get("detail") == "no_consent_record", (
+        f"expected reason no_consent_record, got {b}"
+    )
 
-    # Consent without personalization scope → 403
+    # Analytics-only customer.
     _request("POST", "/consent", {"scopes": ["analytics"]}, token=no_scope_token)
+
+    # An analytics-tagged event (or one with no declared scope, which defaults
+    # to analytics) must be accepted — analytics consent gates *recording*,
+    # not personalization use.
     s, b = _request("POST", "/events", {
         "client_event_id": str(uuid.uuid4()),
         "event_type": "page_view",
         "payload": {"page": "/x"},
+        "consent_scope": ["analytics"],
     }, token=no_scope_token)
-    print(f"no-scope customer    → POST /events → {s} {b}")
-    assert s == 403, f"expected 403 for missing personalization scope, got {s}"
+    print(f"no-scope customer    → POST /events (analytics) → {s} {b}")
+    assert s == 202, f"expected 202 for analytics-tagged event, got {s} {b}"
+
+    # An event explicitly requiring personalization → 403 with the specific
+    # missing scope, so the FE can prompt the user to flip the right toggle.
+    s, b = _request("POST", "/events", {
+        "client_event_id": str(uuid.uuid4()),
+        "event_type": "product_view",
+        "payload": {"product_id": "p_demo"},
+        "consent_scope": ["personalization"],
+    }, token=no_scope_token)
+    print(f"no-scope customer    → POST /events (personalization) → {s} {b}")
+    assert s == 403, f"expected 403 for personalization-only event, got {s}"
+    assert (b or {}).get("detail") == "missing_scope:personalization", (
+        f"expected reason missing_scope:personalization, got {b}"
+    )
 
     _section("HAPPY PATH — INGEST + PROCESS")
 

@@ -6,24 +6,28 @@ import { HomePersonalizedSection } from "@/features/home/components/HomePersonal
 import { HomePopularSection } from "@/features/home/components/HomePopularSection";
 import { HomeEditorialClosingSection } from "@/features/home/components/HomeEditorialClosingSection";
 import { ShopperContextEditorialSection } from "@/features/home/components/ShopperContextEditorialSection";
+import { Context } from "@/features/events/contexts";
 import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
+import { recommendProductsToProducts } from "@/features/recommendations/mappers";
 import { apiClient } from "@/shared/api/client";
 import { tw } from "@/shared/ui/tw";
 
 export function HomePage() {
+  const homepageContext = Context.homepage();
   const recommendationsQuery = useQuery({
-    queryKey: ["home-recommendations"],
-    queryFn: apiClient.getHomeRecommendations,
+    queryKey: ["recommend", homepageContext],
+    queryFn: () => apiClient.getRecommendation(homepageContext),
   });
 
+  const personalized = Boolean(recommendationsQuery.data?.personalization_reason);
   const recommendationMode: "loading" | "personalized" | "generic" | "cold-start" =
     recommendationsQuery.isLoading || recommendationsQuery.isPending
       ? "loading"
-      : !recommendationsQuery.data || recommendationsQuery.data.length === 0
+      : !recommendationsQuery.data || recommendationsQuery.data.products.length === 0
         ? "cold-start"
-        : recommendationsQuery.data.every((rail) => rail.fallback)
-          ? "generic"
-          : "personalized";
+        : personalized
+          ? "personalized"
+          : "generic";
 
   return (
     <div className="flex flex-col gap-0">
@@ -36,11 +40,17 @@ export function HomePage() {
       <HomePersonalizedSection mode={recommendationMode}>
         {recommendationsQuery.isLoading ? (
           <p className={`text-sm ${tw.muted}`}>Loading personalized picks…</p>
-        ) : (
-          recommendationsQuery.data?.map((rail) => (
-            <RecommendationRail key={rail.id} rail={rail} presentation="editorial" />
-          ))
-        )}
+        ) : recommendationsQuery.data && recommendationsQuery.data.products.length > 0 ? (
+          <RecommendationRail
+            products={recommendProductsToProducts(recommendationsQuery.data.products)}
+            sourceContext={homepageContext}
+            title="Picks shaped by your signals"
+            subtitle="Recommended for you"
+            reason={recommendationsQuery.data.personalization_reason ?? undefined}
+            personalized={personalized}
+            presentation="editorial"
+          />
+        ) : null}
       </HomePersonalizedSection>
 
       {/* Profile lab then Sonnette-style closing strip before the global footer */}

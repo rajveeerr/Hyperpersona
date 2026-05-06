@@ -250,10 +250,14 @@ def _hydrate_and_filter(
 ) -> list[dict]:
     """Hydrate KNN hits from storefront `products` and drop out-of-stock.
     Preserves KNN order through the hydration step."""
+    # Prefer metadata `slug` over the doc-`id`: AOSS auto-generates opaque ids
+    # (see shared/opensearch.py upsert), so falling back to `id` produces
+    # garbage slugs that will never match the storefront DDB rows. Local
+    # OpenSearch keeps doc_id == slug, so the `id` fallback still works there.
     candidate_slugs: list[str] = []
     seen: set[str] = set()
     for hit in knn_hits:
-        slug = hit.get("id") or hit.get("slug")
+        slug = hit.get("slug") or hit.get("id")
         if not slug or slug in seen:
             continue
         seen.add(slug)

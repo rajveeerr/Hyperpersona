@@ -5,7 +5,6 @@ import { ConsentBanner } from "@/features/consent/components/ConsentBanner";
 import { DebugEventPanel } from "@/features/events/debug/DebugEventPanel";
 import { TrackerConsentBridge } from "@/features/events/tracker/TrackerConsentBridge";
 import { ToastViewport } from "@/features/toast/components/ToastViewport";
-import { PageViewTracker } from "@/features/events/PageViewTracker";
 import { Footer } from "@/shared/ui/Footer";
 import { Header } from "@/shared/ui/Header";
 import { PageShell } from "@/shared/ui/PageShell";
@@ -26,7 +25,6 @@ export function AppLayout() {
       </a>
       <AuthExpiredListener />
       <TrackerConsentBridge />
-      <PageViewTracker />
       <Header />
       <HeaderLayoutSpacer />
       <ConsentBanner />

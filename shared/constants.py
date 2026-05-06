@@ -34,6 +34,26 @@ HIGH_SIGNAL_EVENT_TYPES = frozenset({
     "purchase", "add_to_cart", "return", "search",
 })
 
+# Pure noise — never run through the analyzer (no behavior-embedding, no fact
+# extraction). The frontend spec (apps/web/event-types-description.md) lists
+# these in its "Do NOT track" section because they're high-volume and produce
+# no useful personalization signal:
+#   - page_view: every route change fires one — Claude extracts trivia like
+#     "the customer viewed a page" / "the page path was /cart" that pollutes
+#     customer-facts and dilutes KNN ranking quality.
+#   - newsletter_interest, persona_switched, profile_updated, consent_updated:
+#     UI-state events with no shopping signal.
+#
+# Marked `aggregated` immediately and never enqueued for Bedrock work.
+NOISE_EVENT_TYPES = frozenset({
+    "page_view",
+    "newsletter_interest",
+    "persona_switched",
+    "profile_updated",
+    "consent_updated",
+    "delete_account_armed",
+})
+
 # Event-status values used by the worker's tiered routing
 EVENT_STATUS_PROCESSED = "processed"             # full supervisor ran
 EVENT_STATUS_CHEAP = "processed_cheap"           # cheap-stored, awaiting summary

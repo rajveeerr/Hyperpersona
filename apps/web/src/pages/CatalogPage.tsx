@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 
@@ -9,7 +9,10 @@ import {
 } from "@/features/catalog/components/CatalogSkeletons";
 import { ListingEmptyFiltered } from "@/features/catalog/components/ListingEmptyFiltered";
 import { ProductGrid } from "@/features/catalog/components/ProductGrid";
-import { useTrackEvent } from "@/features/events/useTrackEvent";
+import { Context } from "@/features/events/contexts";
+import { useSpecTrack } from "@/features/events/specEvents";
+import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
+import { recommendProductsToProducts } from "@/features/recommendations/mappers";
 import { useCatalogFacets } from "@/features/catalog/hooks/useCatalogFacets";
 import { useFacetStripBusyForScopeChange } from "../features/catalog/hooks/useFacetStripBusyForScopeChange";
 import { useProductSearch } from "@/features/catalog/hooks/useProductSearch";
@@ -31,7 +34,7 @@ const CatalogPageIntro = memo(function CatalogPageIntro() {
 
 export function CatalogPage() {
   const [params, setParams] = useSearchParams();
-  const track = useTrackEvent();
+  const trackSpec = useSpecTrack();
   const category = params.get("category") ?? "";
   const sort = params.get("sort") ?? "featured";
   const page = params.get("page") ?? "1";
@@ -44,6 +47,28 @@ export function CatalogPage() {
     queryFn: apiClient.getCategories,
   });
 
+  // Spec `category_view` — fire once per category landing/change, not per
+  // sort/page change. Tracks the canonical category slug ("all" for the
+  // unfiltered catalog landing) so the recommender can attribute browse
+  // intent without conflating filter clicks.
+  const lastCategoryRef = useRef<string | null>(null);
+  useEffect(() => {
+    const slug = category || "all";
+    if (lastCategoryRef.current === slug) return;
+    lastCategoryRef.current = slug;
+    trackSpec("category_view", { category: slug });
+  }, [category, trackSpec]);
+
+  // Spec context: only meaningful when the user has scoped to a category.
+  // The unfiltered landing has no good slug for the recommender — skip the
+  // call rather than spam `category:all` (which would balloon Redis keys).
+  const categoryContext = category ? Context.category(category) : "";
+  const recommendationsQuery = useQuery({
+    queryKey: ["recommend", categoryContext],
+    queryFn: () => apiClient.getRecommendation(categoryContext),
+    enabled: categoryContext.length > 0,
+  });
+
   const updateCategory = (nextCategory: string) => {
     const next = new URLSearchParams(params);
     if (nextCategory) {
@@ -53,12 +78,8 @@ export function CatalogPage() {
     }
     next.delete("page");
     setParams(next);
-    track({
-      customer_id: "demo-customer-1",
-      event_type: "category_view",
-      payload: { category: nextCategory || "all" },
-      consent_scope: ["analytics", "personalization"],
-    });
+    // `category_view` fires from the effect above when `category` changes;
+    // the URL update here triggers the effect on next render.
   };
 
   const updateSort = (nextSort: string) => {
@@ -66,11 +87,11 @@ export function CatalogPage() {
     next.set("sort", nextSort);
     next.delete("page");
     setParams(next);
-    track({
-      customer_id: "demo-customer-1",
-      event_type: "sort_changed",
-      payload: { sort: nextSort, category },
-      consent_scope: ["analytics", "personalization"],
+    trackSpec("filter_applied", {
+      category: category || "all",
+      filter_type: "sort",
+      filter_value: nextSort,
+      surface: "catalog",
     });
   };
 
@@ -83,11 +104,11 @@ export function CatalogPage() {
     }
     next.delete("page");
     setParams(next);
-    track({
-      customer_id: "demo-customer-1",
-      event_type: "filter_change",
-      payload: { filter: "vertical", value: nextVertical || "all", category },
-      consent_scope: ["analytics", "personalization"],
+    trackSpec("filter_applied", {
+      category: category || "all",
+      filter_type: "vertical",
+      filter_value: nextVertical || "all",
+      surface: "catalog",
     });
   };
 
@@ -100,11 +121,11 @@ export function CatalogPage() {
     }
     next.delete("page");
     setParams(next);
-    track({
-      customer_id: "demo-customer-1",
-      event_type: "filter_change",
-      payload: { filter: "freeDelivery", value: only, category },
-      consent_scope: ["analytics", "personalization"],
+    trackSpec("filter_applied", {
+      category: category || "all",
+      filter_type: "free_delivery",
+      filter_value: only ? "true" : "false",
+      surface: "catalog",
     });
   };
 
@@ -206,7 +227,7 @@ export function CatalogPage() {
 
       {query.data && totalPages > 1 ? (
         <nav
-          className={`${tw.labPanel} flex flex-wrap items-center justify-center gap-4 border-t border-outline/12 pt-6 sm:pt-7`}
+          className="mt-4 flex flex-wrap items-center justify-center gap-4 border-t border-outline/15 pt-6 sm:pt-7"
           aria-label="Catalog pagination"
         >
           <button
@@ -229,6 +250,18 @@ export function CatalogPage() {
             Next
           </button>
         </nav>
+      ) : null}
+
+      {recommendationsQuery.data && categoryContext && recommendationsQuery.data.products.length > 0 ? (
+        <RecommendationRail
+          products={recommendProductsToProducts(recommendationsQuery.data.products)}
+          sourceContext={categoryContext}
+          title="Worth a closer look in this category"
+          subtitle="Recommended"
+          reason={recommendationsQuery.data.personalization_reason ?? undefined}
+          personalized={Boolean(recommendationsQuery.data.personalization_reason)}
+          presentation="default"
+        />
       ) : null}
     </div>
   );

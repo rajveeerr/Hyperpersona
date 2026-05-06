@@ -32,7 +32,7 @@ export type PdpProductHeroProps = {
   onAddToCart: (quantity: number, variantContext?: Record<string, string>) => void;
   variantContext: Record<string, string>;
   wishlisted: boolean;
-  onWishlistToggle: () => void;
+  onWishlistToggle: (variantContext?: Record<string, string>) => void;
 };
 
 export function PdpProductHero(props: PdpProductHeroProps) {

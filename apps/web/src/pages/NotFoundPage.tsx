@@ -1,5 +1,10 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
+import { Context } from "@/features/events/contexts";
+import { RecommendationRail } from "@/features/recommendations/components/RecommendationRail";
+import { recommendProductsToProducts } from "@/features/recommendations/mappers";
+import { apiClient } from "@/shared/api/client";
 import { tw } from "@/shared/ui/tw";
 
 /**
@@ -31,6 +36,12 @@ function ProductCutoutFigure() {
 }
 
 export function NotFoundPage() {
+  const noResultsContext = Context.noResults();
+  const recommendationsQuery = useQuery({
+    queryKey: ["recommend", noResultsContext],
+    queryFn: () => apiClient.getRecommendation(noResultsContext),
+  });
+
   return (
     <div
       className={`${tw.stackLg} flex min-h-[min(76vh,880px)] flex-col items-center pt-8 text-center sm:pt-10 lg:pt-12 pb-12 sm:pb-14 lg:pb-16`}
@@ -55,6 +66,20 @@ export function NotFoundPage() {
           Back home
         </Link>
       </div>
+
+      {recommendationsQuery.data && recommendationsQuery.data.products.length > 0 ? (
+        <div className="mt-12 w-full max-w-5xl text-left">
+          <RecommendationRail
+            products={recommendProductsToProducts(recommendationsQuery.data.products)}
+            sourceContext={noResultsContext}
+            title="While you're here, take a look at these"
+            subtitle="Curated"
+            reason={recommendationsQuery.data.personalization_reason ?? undefined}
+            personalized={Boolean(recommendationsQuery.data.personalization_reason)}
+            presentation="default"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

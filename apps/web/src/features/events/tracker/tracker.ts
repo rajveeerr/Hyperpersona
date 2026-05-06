@@ -41,7 +41,16 @@ import { TRACKER_SCHEMA_VERSION, type StoredEvent, type TrackInput } from "@/fea
 // --- tunables ---------------------------------------------------------------
 const FLUSH_DEBOUNCE_MS = 3_000;
 const FLUSH_SIZE_THRESHOLD = 50;
-const MAX_BATCH_SIZE = 50;        // also matches server clamp
+/** Server clamps `IngestBatchRequest.events` at 100; mirror that ceiling here. */
+const MAX_BATCH_SIZE = 100;
+/**
+ * `keepalive: true` browser bodies are capped at ~64 KB **per origin** —
+ * any other in-flight keepalive request shares the same budget. Stay well
+ * under the cap so a concurrent fetch (e.g. the cart mutation that's also
+ * trying to fire on pagehide) doesn't get squeezed out. Non-keepalive
+ * flushes (debounce/threshold) are not subject to this cap.
+ */
+const KEEPALIVE_BYTE_CAP = 50_000;
 const MAX_QUEUE_SIZE = 1_000;
 const MAX_EVENT_AGE_MS = 7 * 24 * 60 * 60 * 1_000;
 const BACKOFF_BASE_MS = 1_000;
@@ -86,8 +95,46 @@ function ensureSessionId(): string {
   }
 }
 
-function isPersonalizationGranted(scopes: string[]): boolean {
-  return scopes.includes("personalization");
+function intersectScopes(requested: string[], granted: string[]): string[] {
+  if (requested.length === 0) return [];
+  const grantedSet = new Set(granted);
+  return requested.filter((s) => grantedSet.has(s));
+}
+
+/**
+ * Estimate the encoded byte cost of a single event on the wire. We only
+ * need the wire-relevant fields — IDB-internal bookkeeping (attempt_count,
+ * customer_id_at_enqueue, etc.) is dropped before send. `Blob.size` is the
+ * one cross-browser way to count UTF-8 bytes accurately.
+ */
+function eventWireBytes(e: StoredEvent): number {
+  const wire = {
+    client_event_id: e.client_event_id,
+    event_type: e.event_type,
+    payload: e.payload,
+    consent_scope: e.consent_scope,
+  };
+  return new Blob([JSON.stringify(wire)]).size;
+}
+
+/**
+ * Trim an event list down so the encoded payload fits inside `cap` bytes,
+ * leaving overhead headroom for the `{events:[...]}` envelope and HTTP
+ * headers. Preserves prefix order so older events ship first; remaining
+ * events stay in the queue and ride the next flush.
+ */
+function trimToByteCap(events: StoredEvent[], cap: number): StoredEvent[] {
+  // Reserve ~1 KB for the JSON envelope (`{"events":[...]}`) plus headers.
+  const budget = Math.max(1_024, cap - 1_024);
+  const out: StoredEvent[] = [];
+  let used = 0;
+  for (const e of events) {
+    const cost = eventWireBytes(e) + 1; // +1 for the comma separator
+    if (used + cost > budget && out.length > 0) break;
+    out.push(e);
+    used += cost;
+  }
+  return out;
 }
 
 function backoffDelay(attempts: number): number {
@@ -117,9 +164,10 @@ function scheduleFlush(delayMs = FLUSH_DEBOUNCE_MS): void {
 
 /**
  * Update the consent snapshot. Called from a React bridge that observes the
- * consent query. Events enqueued before this is set carry `[]` and the server
- * will reject them with `missing_personalization_scope` — at which point we
- * stop retrying them (see `flushPending` rejection handling).
+ * consent query. Used by `trackEvent` to gate enqueue: an event is dropped
+ * locally only if the intersection of its declared `consent_scope` and this
+ * snapshot is empty. Events that survive the intersection ship the
+ * intersected scope list on the wire so the server stores the right thing.
  */
 export function setConsentSnapshot(scopes: string[]): void {
   consentSnapshot = scopes.slice();
@@ -132,9 +180,12 @@ export function getConsentSnapshot(): string[] {
 
 /**
  * Enqueue a tracking event. Fire-and-forget — never throws to the caller.
- * Drops events when the user has not granted `personalization` consent
- * because the server would reject them anyway and we don't want to burn
- * IDB rows on doomed payloads.
+ * Drops events whose declared scopes share nothing with the customer's
+ * granted scopes, because the server would reject them anyway and we don't
+ * want to burn IDB rows on doomed payloads. Surviving events ship the
+ * intersected scope list on the wire so the server records what the event
+ * is actually allowed to be used for (matches the per-event scope check
+ * in `server/src/routes/events.py`).
  */
 export function trackEvent(input: TrackInput): void {
   if (typeof window === "undefined") return;
@@ -143,10 +194,14 @@ export function trackEvent(input: TrackInput): void {
   // dedupe cache is a best-effort guard, not a hard contract.
   if (shouldDropAsDuplicate(input.event_type, input.payload)) return;
 
-  const scopes = (input.consent_scope?.length ? input.consent_scope : consentSnapshot).slice();
-  if (!isPersonalizationGranted(scopes)) {
-    // Without personalization scope the server rejects everything in the
-    // batch (see `server/src/routes/events.py`). Drop early.
+  // Default to {"analytics"} when the caller doesn't declare a scope, since
+  // every event is at minimum a recordable analytics signal.
+  const requested = input.consent_scope?.length ? input.consent_scope : ["analytics"];
+  const scopes = intersectScopes(requested, consentSnapshot);
+  if (scopes.length === 0) {
+    // Snapshot grants none of the scopes this event needs. Either the user
+    // has no consent record yet, or they've revoked the relevant scope —
+    // drop instead of queuing a payload the server will reject.
     return;
   }
 
@@ -241,7 +296,14 @@ async function drainOnce(keepalive: boolean): Promise<void> {
   if (wrongIdentity.length > 0) {
     await deleteEventsByIds(wrongIdentity.map((e) => e.client_event_id));
   }
-  const safe = due.filter((e) => !wrongIdentity.includes(e));
+  const safeAll = due.filter((e) => !wrongIdentity.includes(e));
+  if (safeAll.length === 0) return;
+
+  // Trim by bytes when the page is being torn down (keepalive=true). The
+  // browser caps keepalive bodies at ~64 KB across all in-flight requests
+  // for the origin; oversize requests fail silently. For non-keepalive
+  // flushes we trust the server's 100-event clamp and skip the byte check.
+  const safe = keepalive ? trimToByteCap(safeAll, KEEPALIVE_BYTE_CAP) : safeAll;
   if (safe.length === 0) return;
 
   const wire: IngestEventRequest[] = safe.map((e) => ({

@@ -1,14 +1,22 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 
+import { useAuth } from "@/features/auth/useAuth";
 import { ProfileLabSkeleton } from "@/features/profile/components/ProfileLabSkeleton";
 import { ProfileSummary } from "@/features/profile/components/ProfileSummary";
 import { useTrackEvent } from "@/features/events/useTrackEvent";
+import { clearTrackerQueue } from "@/features/events/tracker";
 import { apiClient } from "@/shared/api/client";
+import { ApiError } from "@/shared/api/contracts";
 import { tw } from "@/shared/ui/tw";
 
 export function ProfilePage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const track = useTrackEvent();
+  const [deleteArmed, setDeleteArmed] = useState(false);
   const profileQuery = useQuery({
     queryKey: ["profile"],
     queryFn: apiClient.getProfile,
@@ -24,6 +32,31 @@ export function ProfilePage() {
       queryClient.setQueryData(["profile"], next);
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: apiClient.deleteAccount,
+    onSuccess: async () => {
+      // Right-to-erasure cleanup on the FE side: drain any in-flight events
+      // queued under this identity, drop every cached query (cart + wishlist
+      // live in React Query now, so this also clears them), then log out and
+      // route to home.
+      await clearTrackerQueue();
+      queryClient.clear();
+      logout();
+      navigate("/", { replace: true });
+    },
+  });
+
+  const deleteErrorMessage = (() => {
+    if (!deleteMutation.isError) return null;
+    const err = deleteMutation.error;
+    if (err instanceof ApiError) {
+      if (err.status === 404) return "Nothing to delete — your account already has no data on record.";
+      if (err.status === 0) return "Network error. Check your connection and try again.";
+      return err.message;
+    }
+    return "Could not delete your data. Try again in a moment.";
+  })();
 
   const profileBusy = profileQuery.isPending || profileQuery.isLoading;
   const explanationsBusy = explanationsQuery.isPending || explanationsQuery.isLoading;
@@ -81,11 +114,20 @@ export function ProfilePage() {
             const next = profileQuery.data.explicitPreferences.map((item) =>
               item.key === "budget" ? { ...item, value: "$40-$120" } : item,
             );
+            const prevValue = profileQuery.data.explicitPreferences.find((p) => p.key === "budget")?.value;
             mutation.mutate(next);
             track({
-              customer_id: "demo-customer-1",
               event_type: "profile_updated",
-              payload: { field: "budget", value: "$40-$120" },
+              payload: {
+                field: "budget",
+                value: "$40-$120",
+                // Delta lets the worker spot magnitude of change ("$40-$120"
+                // → tighter band) without re-fetching the prior profile.
+                previous_value: prevValue ?? null,
+                customer_segment: profileQuery.data.segment,
+                top_categories: profileQuery.data.topCategories,
+                inferred_interest_count: profileQuery.data.inferredInterests.length,
+              },
               consent_scope: ["analytics", "personalization"],
             });
           }}
@@ -97,6 +139,83 @@ export function ProfilePage() {
             Update failed. Try again.
           </p>
         ) : null}
+      </section>
+
+      <section
+        className={`${tw.labPanel} ${tw.labPanelPad} max-w-xl border-red-700/25 bg-red-50/30`}
+        aria-labelledby="delete-account-heading"
+      >
+        <p className={`text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-red-800/80`}>
+          Right to erasure
+        </p>
+        <h2
+          id="delete-account-heading"
+          className={`${tw.displayH2} mt-1 text-xl font-medium leading-snug`}
+        >
+          Delete my data
+        </h2>
+        <p className={`mt-2 text-sm leading-relaxed ${tw.muted}`}>
+          Wipes everything the demo has learned about you: tracked events, consent record,
+          recommendation cache, and behavioral vectors. This action cannot be undone. You will be
+          signed out immediately afterward.
+        </p>
+
+        {deleteArmed ? (
+          <div className="mt-6 grid gap-3 rounded-card border border-red-700/30 bg-white/80 px-4 py-4 sm:px-5">
+            <p className="text-sm leading-relaxed text-red-900">
+              <strong className="font-semibold">Are you sure?</strong> This permanently removes your behavioral
+              data from DynamoDB, OpenSearch, and Redis. Your local cart and wishlist will also be cleared.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-pill border border-red-700/40 bg-red-700 px-5 py-2 text-[0.75rem] font-semibold text-white transition-colors hover:bg-red-800 disabled:opacity-60"
+                disabled={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate()}
+              >
+                {deleteMutation.isPending ? "Deleting…" : "Yes, delete everything"}
+              </button>
+              <button
+                type="button"
+                className={tw.buttonGhost}
+                disabled={deleteMutation.isPending}
+                onClick={() => setDeleteArmed(false)}
+              >
+                Cancel
+              </button>
+            </div>
+            {deleteErrorMessage ? (
+              <p className="text-sm text-red-800/90" role="alert">
+                {deleteErrorMessage}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="mt-6 inline-flex min-h-10 cursor-pointer items-center justify-center rounded-pill border border-red-700/35 bg-white/70 px-5 py-2 text-[0.75rem] font-semibold text-red-800 transition-colors hover:border-red-700/60 hover:bg-white"
+            onClick={() => {
+              setDeleteArmed(true);
+              track({
+                event_type: "delete_account_armed",
+                payload: {
+                  // Snapshot what's about to be wiped — useful for moderation /
+                  // compliance traces and for understanding which kinds of
+                  // shoppers actually pull the trigger.
+                  customer_segment: profileQuery.data.segment,
+                  top_categories: profileQuery.data.topCategories,
+                  explicit_preference_count: profileQuery.data.explicitPreferences.length,
+                  inferred_interest_count: profileQuery.data.inferredInterests.length,
+                  recent_signal_count: profileQuery.data.recentSignals.length,
+                  profile_last_updated: profileQuery.data.lastUpdated,
+                },
+                consent_scope: ["analytics", "personalization"],
+              });
+            }}
+          >
+            Delete my data…
+          </button>
+        )}
       </section>
     </div>
   );

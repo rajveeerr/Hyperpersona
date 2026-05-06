@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 import { prefetchProductPageChunk } from "@/app/routeChunks";
+import { productSnapshot } from "@/features/events/payloads";
 import { useTrackEvent } from "@/features/events/useTrackEvent";
 import type { Product } from "@/shared/api/contracts";
 import { formatCurrency } from "@/shared/lib/format";
@@ -13,6 +14,13 @@ type ProductCardProps = {
    * omit on dense listings when the page title already states context.
    */
   accent?: string;
+  /**
+   * Fires before navigation alongside the built-in tile-click events. Used by
+   * `RecommendationRail` to emit `recommendation_clicked` with its source
+   * context. The card's own tracking (`product_click`, `product_tile_clicked`)
+   * still fires regardless.
+   */
+  onClick?: (product: Product) => void;
 };
 
 /** Caps hero crop height so portrait SKUs don’t push title/price down; `object-contain` keeps native ratio. */
@@ -23,29 +31,24 @@ const catalogImageMax =
  * Single product tile treatment site-wide (column/row dividers live on `ProductGrid`; no tile fill).
  * Editorial **New collection** (`EditorialNewCollectionSection`) stays bespoke lookbook markup.
  */
-export function ProductCard({ product, accent }: ProductCardProps) {
+export function ProductCard({ product, accent, onClick }: ProductCardProps) {
   const track = useTrackEvent();
 
   const trackClick = () => {
-    const payload = {
-      productId: product.id,
-      slug: product.slug,
-      freeDelivery: product.freeDelivery === true,
-      vertical: product.vertical ?? "general",
-      source: "grid" as const,
-    };
     track({
-      customer_id: "demo-customer-1",
-      event_type: "product_click",
-      payload,
-      consent_scope: ["analytics", "personalization"],
-    });
-    track({
-      customer_id: "demo-customer-1",
       event_type: "product_tile_clicked",
-      payload,
+      payload: {
+        ...productSnapshot(product),
+        // Keep camelCase aliases the BE has been seeing, so any worker
+        // already keyed off `productId`/`slug` keeps working alongside the
+        // new snake_case snapshot fields.
+        productId: product.id,
+        slug: product.slug,
+        source: "grid",
+      },
       consent_scope: ["analytics", "personalization"],
     });
+    onClick?.(product);
   };
 
   return (

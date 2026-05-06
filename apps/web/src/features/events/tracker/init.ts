@@ -11,6 +11,7 @@
  * `initEventTracker()` twice is a no-op (idempotent).
  */
 
+import { clearProductSnapshotCache } from "@/features/events/payloads";
 import {
   clearTrackerQueue,
   flushPending,
@@ -54,8 +55,11 @@ export function initEventTracker(): void {
   window.addEventListener("auth:login", onLogin);
 
   const onLogout = () => {
-    // Stop pursuing flushes for the just-cleared session.
+    // Stop pursuing flushes for the just-cleared session, and drop the
+    // FE product→category map so a different identity can't read another
+    // shopper's stamped categories.
     void clearTrackerQueue();
+    clearProductSnapshotCache();
   };
   window.addEventListener("auth:logout", onLogout);
   // Treat token expiry the same as a logout for the queue.

@@ -12,7 +12,7 @@ type PdpCommerceActionsProps = {
   onAddToCart: (quantity: number, variantContext?: Record<string, string>) => void;
   variantContext: Record<string, string>;
   wishlisted: boolean;
-  onWishlistToggle: () => void;
+  onWishlistToggle: (variantContext?: Record<string, string>) => void;
 };
 
 export function PdpCommerceActions({
@@ -49,7 +49,11 @@ export function PdpCommerceActions({
         className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4"
         aria-label="More actions"
       >
-        <button type="button" className={tw.linkCommerceUnderline} onClick={onWishlistToggle}>
+        <button
+          type="button"
+          className={tw.linkCommerceUnderline}
+          onClick={() => onWishlistToggle(variantContext)}
+        >
           {wishlisted ? "Remove from saved" : "Save for later"}
         </button>
         <Link to="/checkout" className={tw.linkCommerceUnderline}>

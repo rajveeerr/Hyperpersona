@@ -2,32 +2,35 @@ import { clearSession, getSession, sessionFromAuthResponse, setSession } from "@
 import { env } from "@/shared/config/env";
 import { ApiError } from "@/shared/api/contracts";
 import type {
+  AddCartItemBody,
+  AddWishlistItemBody,
   AuthResponse,
   AuthSession,
+  CartResponse,
   CatalogFacetGroup,
   Category,
   CheckoutInput,
   CheckoutResponse,
+  ComplementResponse,
   ConsentRecord,
   CreateProductReviewBody,
   CreateProductReviewResponse,
-  DeliveryAddress,
-  DeliveryAddressListResponse,
+  DeleteCustomerResponse,
   ExplanationRecord,
   IngestBatchResponse,
   IngestEventRequest,
   LoginRequest,
   OrderListResponse,
-  OrderSummary,
+  PatchCartItemBody,
   Product,
   ProductListResponse,
   ProductReviewsResponse,
   ProfileSummary,
-  RecommendationRail,
+  RecommendResponse,
   RegisterRequest,
   SetReviewHelpfulBody,
   SetReviewHelpfulResponse,
-  TrackedEvent,
+  WishlistResponse,
 } from "@/shared/api/contracts";
 
 /**
@@ -170,11 +173,31 @@ export const apiClient = {
   searchProducts: (params = "") => request<ProductListResponse>(`/search${params}`),
 
   // --- Recommendations ---
-  getHomeRecommendations: () => request<RecommendationRail[]>("/recommendations/home"),
-  getSurfaceRecommendations: (surface: string, value?: string) =>
-    request<RecommendationRail[]>(
-      `/recommendations/${surface}${value ? `?productId=${encodeURIComponent(value)}` : ""}`,
-    ),
+  /**
+   * Personalized rail. Pass a context string from `Context.*` helpers
+   * ([apps/web/src/features/events/contexts.ts]) — never hand-build the
+   * value, since the server caches per (customer_id, context_hash) for
+   * 5 minutes and ad-hoc strings balloon the keyspace.
+   *
+   * Response includes a ranked `products[]`, a `personalization_reason`
+   * subtitle (null when generic), and the AI `offer` text the FE can
+   * surface as an editorial banner.
+   */
+  getRecommendation: (context: string) =>
+    request<RecommendResponse>(`/recommend?context=${encodeURIComponent(context)}`),
+  /**
+   * Cart-driven "frequently bought together" rail. Pass the product ids
+   * currently in the cart (comma-separated server-side), optional limit
+   * up to 10. Response is a lighter shape — no images / brand / rating —
+   * so render a text-forward "list" tile rather than the catalog grid.
+   */
+  getComplementRecommendation: (cartItems: string[], limit = 5) => {
+    const params = new URLSearchParams({
+      cart_items: cartItems.join(","),
+      limit: String(limit),
+    });
+    return request<ComplementResponse>(`/recommend/complement?${params.toString()}`);
+  },
 
   // --- Consent / profile ---
   getConsent: () => request<ConsentRecord>("/consent"),
@@ -198,6 +221,15 @@ export const apiClient = {
       body: JSON.stringify({ explicitPreferences }),
     }),
   getExplanations: () => request<ExplanationRecord>("/me/explanations"),
+  /**
+   * Right-to-erasure. Wipes the customer's behavioral data (events, consent,
+   * Redis state, vectors) on the BE — see `server/src/routes/customer.py`.
+   * The customer auth row is NOT removed by this endpoint; callers should
+   * still call `apiClient.logout()` after this resolves so the FE treats it
+   * as a clean session end.
+   */
+  deleteAccount: () =>
+    request<DeleteCustomerResponse>("/customer", { method: "DELETE" }),
 
   // --- Tracking ---
   /**
@@ -215,7 +247,6 @@ export const apiClient = {
       body: JSON.stringify({ events }),
       keepalive: opts.keepalive,
     }),
-  getDebugEvents: () => request<TrackedEvent[]>("/debug/events"),
 
   // --- Commerce ---
   checkout: (body: CheckoutInput) =>
@@ -224,15 +255,36 @@ export const apiClient = {
       body: JSON.stringify(body),
     }),
   getOrders: (params = "") => request<OrderListResponse>(`/me/orders${params}`),
-  patchOrderDeliveryAddress: (orderId: string, deliveryAddressId: string) =>
-    request<OrderSummary>(`/me/orders/${encodeURIComponent(orderId)}/delivery-address`, {
-      method: "PATCH",
-      body: JSON.stringify({ deliveryAddressId }),
+
+  // --- Server-side cart (mirrors `server/src/routes/me_cart.py`) ---
+  /** Returns the customer's cart with pre-computed `itemCount` + `subtotal`. */
+  getCart: () => request<CartResponse>("/me/cart"),
+  /** Add a product to the cart. Server bumps quantity if the line already exists. */
+  addCartItem: (body: AddCartItemBody) =>
+    request<CartResponse>("/me/cart/items", {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
-  getAddresses: () => request<DeliveryAddressListResponse>("/me/addresses"),
-  patchAddress: (id: string, body: Partial<DeliveryAddress>) =>
-    request<DeliveryAddress>(`/me/addresses/${encodeURIComponent(id)}`, {
+  /** Update quantity (and/or selectedOptions) on an existing line. */
+  patchCartItem: (productId: string, body: PatchCartItemBody) =>
+    request<CartResponse>(`/me/cart/items/${encodeURIComponent(productId)}`, {
       method: "PATCH",
       body: JSON.stringify(body),
+    }),
+  deleteCartItem: (productId: string) =>
+    request<CartResponse>(`/me/cart/items/${encodeURIComponent(productId)}`, {
+      method: "DELETE",
+    }),
+
+  // --- Server-side wishlist (mirrors `server/src/routes/me_wishlist.py`) ---
+  getWishlist: () => request<WishlistResponse>("/me/wishlist"),
+  addWishlistItem: (body: AddWishlistItemBody) =>
+    request<WishlistResponse>("/me/wishlist/items", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deleteWishlistItem: (productId: string) =>
+    request<WishlistResponse>(`/me/wishlist/items/${encodeURIComponent(productId)}`, {
+      method: "DELETE",
     }),
 };

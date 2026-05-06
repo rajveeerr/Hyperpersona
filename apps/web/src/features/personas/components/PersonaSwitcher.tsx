@@ -46,11 +46,23 @@ export const PersonaSwitcher = ({ embedded = false }: PersonaSwitcherProps) => {
                   : "border-l-4 border-l-transparent hover:bg-ink/[0.035]"
               }`}
               onClick={() => {
+                const prevPersona = persona;
                 setPersona(item.id);
                 track({
-                  customer_id: "demo-customer-1",
                   event_type: "persona_switched",
-                  payload: { personaId: item.id, label: item.label },
+                  payload: {
+                    persona_id: item.id,
+                    persona_name: item.name,
+                    persona_label: item.label,
+                    persona_summary: item.summary,
+                    persona_intent: item.currentIntent,
+                    persona_recent_signals: item.recentSignals,
+                    previous_persona_id: prevPersona.id,
+                    previous_persona_label: prevPersona.label,
+                    // Camel aliases for any worker already keyed off the old shape.
+                    personaId: item.id,
+                    label: item.label,
+                  },
                   consent_scope: ["analytics", "personalization"],
                 });
               }}

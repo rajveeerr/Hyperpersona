@@ -7,9 +7,16 @@ import { initEventTracker } from "@/features/events/tracker";
 import "@/shared/styles/app.css";
 
 async function bootstrap() {
-  if (import.meta.env.DEV) {
-    const { worker } = await import("@/mocks/browser");
-    await worker.start({ onUnhandledRequest: "bypass" });
+  // Defensive cleanup: a previous MSW install may still be cached in the
+  // browser from older builds. Unregister any service worker on boot so the
+  // network panel never shows "(from service worker)" again.
+  if (import.meta.env.DEV && "serviceWorker" in navigator) {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((r) => r.unregister()));
+    } catch {
+      /* noop — old SW cleanup is best-effort. */
+    }
   }
 
   // Wire DOM listeners (visibility/pagehide/online) and drain anything left

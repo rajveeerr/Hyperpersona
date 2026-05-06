@@ -22,6 +22,7 @@ import argparse
 import logging
 import os
 import sys
+from urllib.parse import unquote
 
 sys.path.insert(0, "/app")
 
@@ -46,14 +47,41 @@ def _strip_dynamo_keys(item: dict) -> dict:
     return out
 
 
-def _opensearch_slugs(vectors) -> set[str]:
-    """Return every doc id (which is the slug) currently in product-catalog."""
+def _enumerate_docs(vectors) -> dict[str, list[str]]:
+    """Return slug -> [doc_id, ...] map for everything in product-catalog.
+
+    On local OpenSearch, doc id IS the slug, so each list has one element.
+    On AOSS, doc ids are auto-generated UUIDs (AOSS rejects custom ids), so
+    a single slug may map to multiple ids if seed scripts were re-run —
+    those duplicates show up as `len(ids) > 1` and the reconcile loop
+    collapses them by deleting all and re-upserting once.
+    """
     client = getattr(vectors, "client", None)
     if client is None:
-        log.warning("vector store has no underlying client; cannot enumerate orphans")
-        return set()
-    slugs: set[str] = set()
-    # Scroll through all docs, source=False so we don't pay for vectors.
+        log.warning("vector store has no underlying client; cannot enumerate")
+        return {}
+    is_aoss = getattr(vectors, "is_aoss", False)
+    out: dict[str, list[str]] = {}
+
+    if is_aoss:
+        # AOSS doesn't support scroll/PIT. Single bounded search instead —
+        # the product-catalog index is small (10k cap is plenty).
+        resp = client.search(
+            index=COLLECTION_PRODUCTS,
+            body={"query": {"match_all": {}}, "_source": ["slug"]},
+            size=10000,
+        )
+        for hit in resp["hits"]["hits"]:
+            slug = hit.get("_source", {}).get("slug")
+            if slug:
+                # AOSS returns _id URL-encoded in JSON responses (auto-ids
+                # contain colons). opensearch-py URL-encodes path segments,
+                # so passing the raw response value to client.delete double-
+                # encodes and 404s. Decode once here.
+                out.setdefault(slug, []).append(unquote(hit["_id"]))
+        return out
+
+    # Local OpenSearch path: scroll through, doc id == slug.
     body = {"query": {"match_all": {}}, "_source": False}
     resp = client.search(index=COLLECTION_PRODUCTS, body=body, size=1000, scroll="1m")
     while True:
@@ -61,14 +89,30 @@ def _opensearch_slugs(vectors) -> set[str]:
         if not hits:
             break
         for hit in hits:
-            slugs.add(hit["_id"])
+            out.setdefault(hit["_id"], []).append(hit["_id"])
         scroll_id = resp.get("_scroll_id")
         if not scroll_id:
             break
         resp = client.scroll(scroll_id=scroll_id, scroll="1m")
         if not resp["hits"]["hits"]:
             break
-    return slugs
+    return out
+
+
+def _delete_docs(client, doc_ids: list[str]) -> None:
+    """Delete each doc by its OpenSearch _id.
+
+    Works on both transports: local OpenSearch lets us delete custom slug-ids
+    that we wrote, and AOSS allows DELETE /_doc/<id> when the id was one AOSS
+    itself generated (which is what _enumerate_docs returns for AOSS).
+    AOSS rejects _delete_by_query and rejects delete-by-custom-id, so this
+    is the only path that works for both.
+    """
+    for doc_id in doc_ids:
+        try:
+            client.delete(index=COLLECTION_PRODUCTS, id=doc_id, ignore=[404])
+        except Exception:
+            log.exception("delete failed for doc_id=%s", doc_id)
 
 
 def main() -> None:
@@ -94,40 +138,53 @@ def main() -> None:
         mode=os.getenv("VECTOR_MODE", "opensearch"),
         host=os.getenv("OPENSEARCH_HOST", "opensearch"),
         port=int(os.getenv("OPENSEARCH_PORT", "9200")),
+        aoss_endpoint=os.getenv("AOSS_ENDPOINT", ""),
+        region=os.getenv("AWS_REGION", "us-east-1"),
     )
     snapshot = CatalogSnapshot(dynamo)
     writer = CatalogWriter(dynamo=dynamo, bedrock=bedrock, vectors=vectors, snapshot=snapshot)
 
+    is_aoss = getattr(vectors, "is_aoss", False)
+    client = getattr(vectors, "client", None)
+
     dynamo_products = [Product.model_validate(_strip_dynamo_keys(row)) for row in dynamo.scan_products()]
     dynamo_slugs = {p.slug for p in dynamo_products}
-    opensearch_slugs = _opensearch_slugs(vectors)
+    slug_to_docids = _enumerate_docs(vectors)
+    opensearch_slugs = set(slug_to_docids.keys())
 
     missing_in_vectors = dynamo_slugs - opensearch_slugs
     orphan_vectors = opensearch_slugs - dynamo_slugs
+    duplicates = {s: ids for s, ids in slug_to_docids.items() if len(ids) > 1 and s in dynamo_slugs}
+    total_docs = sum(len(ids) for ids in slug_to_docids.values())
 
     log.info(
-        "reconcile summary: dynamo=%d opensearch=%d missing_vectors=%d orphans=%d",
-        len(dynamo_slugs), len(opensearch_slugs), len(missing_in_vectors), len(orphan_vectors),
+        "reconcile summary: dynamo=%d opensearch_slugs=%d opensearch_docs=%d missing=%d orphans=%d duplicate_slugs=%d",
+        len(dynamo_slugs), len(opensearch_slugs), total_docs,
+        len(missing_in_vectors), len(orphan_vectors), len(duplicates),
     )
 
-    # Re-upsert anything missing or potentially-stale. Re-embedding the
-    # whole set is cheap with the mock client and idempotent with real
-    # Titan. We do all dynamo products to also catch metadata drift
-    # (price changed in Dynamo but vector metadata is stale).
+    # Re-upsert every Dynamo product to catch metadata drift (price changed
+    # in Dynamo but vector metadata is stale). On AOSS we delete-by-slug
+    # first since auto-generated ids mean upsert-by-id isn't available, so
+    # without the delete each re-run would accumulate duplicates.
     for product in dynamo_products:
         try:
+            existing = slug_to_docids.get(product.slug, [])
+            if is_aoss and existing and client is not None:
+                # AOSS auto-generates ids on upsert, so re-runs would pile up
+                # duplicates. Delete the prior copies first.
+                _delete_docs(client, existing)
             writer.upsert_product(product)
         except Exception:
             log.exception("re-upsert failed for slug=%s", product.slug)
 
     if orphan_vectors:
         if args.delete_orphans:
-            client = getattr(vectors, "client", None)
             if client is None:
                 log.warning("vector store has no client; cannot delete orphans")
             else:
                 for slug in orphan_vectors:
-                    client.delete(index=COLLECTION_PRODUCTS, id=slug, ignore=[404])
+                    _delete_docs(client, slug_to_docids.get(slug, []))
                     log.info("deleted orphan vector slug=%s", slug)
         else:
             log.warning(

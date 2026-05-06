@@ -82,7 +82,7 @@ export const tw = {
   linkCommerceUnderline:
     "inline-flex cursor-pointer items-center border-0 bg-transparent pb-0.5 text-left text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink underline decoration-ink/30 underline-offset-[0.38rem] transition-opacity duration-150 hover:opacity-65 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
   buttonGhost:
-    "inline-flex min-h-12 cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-pill border border-outline bg-transparent px-[1.2rem] text-ink transition-transform duration-150 ease-out hover:-translate-y-px focus-visible:-translate-y-px",
+    "inline-flex min-h-12 cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-pill border border-outline bg-transparent px-[1.2rem] text-ink transition-transform duration-150 ease-out hover:-translate-y-px focus-visible:-translate-y-px disabled:pointer-events-none disabled:opacity-45 disabled:hover:translate-y-0",
 
   /**
    * Primary commerce CTA on cream radial canvases — glass pill, not solid ink (`tw.button`).

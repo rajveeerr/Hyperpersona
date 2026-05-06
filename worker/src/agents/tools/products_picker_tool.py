@@ -113,10 +113,14 @@ def pick_personalized_products(
     knn_hits = vectors.search(COLLECTION_PRODUCTS, query_vec, k=RECOMMEND_KNN_K)
 
     # Preserve KNN order through hydration; de-duplicate slugs.
+    # Prefer the metadata `slug` field over the OpenSearch-doc `id` because
+    # AOSS rejects client-supplied ids (see shared/opensearch.py upsert) — its
+    # auto-generated `_id` is opaque and won't match storefront slugs in DDB.
+    # Local OpenSearch keeps doc_id == slug, so the `id` fallback still works.
     candidate_slugs: list[str] = []
     seen: set[str] = set()
     for hit in knn_hits:
-        slug = hit.get("id") or hit.get("slug")
+        slug = hit.get("slug") or hit.get("id")
         if not slug or slug in seen:
             continue
         seen.add(slug)

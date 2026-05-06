@@ -15,9 +15,11 @@ import json
 import logging
 
 from shared.constants import (
+    EVENT_STATUS_AGGREGATED,
     EVENT_STATUS_CHEAP,
     EVENT_STATUS_PROCESSED,
     HIGH_SIGNAL_EVENT_TYPES,
+    NOISE_EVENT_TYPES,
 )
 from shared.schemas import Job
 
@@ -38,6 +40,20 @@ def handle(job: dict, ctx: dict) -> None:
         raise ValueError(f"event {event_id} not found in DynamoDB")
 
     event_type = event.get("event_type", "")
+
+    # Noise gate (applies in BOTH "full" and "tiered" modes). Events the
+    # frontend spec explicitly says NOT to track (page_view, UI-state pings)
+    # produce trivial Claude facts like "the customer viewed a page" that
+    # pollute customer-facts and dilute KNN ranking. Mark them aggregated
+    # immediately and skip Bedrock work entirely. See NOISE_EVENT_TYPES in
+    # shared/constants.py for the full list and rationale.
+    if event_type in NOISE_EVENT_TYPES:
+        log.info(
+            "noise event (skipped)",
+            extra={"event_type": event_type, "customer_id": customer_id, "event_id": event_id},
+        )
+        dynamo.update_event_status(customer_id, event_id, EVENT_STATUS_AGGREGATED)
+        return
 
     # In "full" mode (default), every event runs the supervisor regardless of
     # type — maximum accuracy, no signal lost. In "tiered" mode, low-signal

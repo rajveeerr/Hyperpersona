@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { useAuth } from "@/features/auth/useAuth";
 import { useConsentMutation, useConsentQuery } from "@/features/consent/useConsent";
@@ -103,7 +103,8 @@ function ConsentNudgePanel({ variant, onExitComplete, children }: NudgePanelProp
 }
 
 export function ConsentBanner() {
-  const { isAuthenticated, customerId } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
   const track = useTrackEvent();
   const [, forceRerender] = useReducer((c: number) => c + 1, 0);
   const consent = useConsentQuery();
@@ -112,6 +113,10 @@ export function ConsentBanner() {
   // Unauthenticated visitors don't have a consent record at all — keep the
   // banner silent. The marketing/auth pages own their own messaging.
   if (!isAuthenticated) return null;
+
+  // The /consent page already renders setup/edit UI for the same record —
+  // a floating toast over its own form is duplicate noise.
+  if (location.pathname.startsWith("/consent")) return null;
 
   // Either still loading, or a fatal error we don't want to surface as a
   // floating toast (the page-level surface owns that messaging).
@@ -197,11 +202,19 @@ export function ConsentBanner() {
               onClick={() => {
                 const nextScopes = ["analytics", "personalization"];
                 const retention = consent.record?.data_retention_days ?? 90;
+                const prevScopes = consent.record?.scopes ?? [];
                 updateConsent.mutate({ scopes: nextScopes, data_retention_days: retention });
                 track({
-                  customer_id: customerId ?? "demo-customer-1",
                   event_type: "consent_updated",
-                  payload: { scopes: nextScopes, data_retention_days: retention, source: "banner" },
+                  payload: {
+                    action: prevScopes.length === 0 ? "create" : "update_scopes",
+                    scopes: nextScopes,
+                    previous_scopes: prevScopes,
+                    scopes_added: nextScopes.filter((s) => !prevScopes.includes(s)),
+                    scopes_removed: prevScopes.filter((s) => !nextScopes.includes(s)),
+                    data_retention_days: retention,
+                    source: "banner",
+                  },
                   consent_scope: nextScopes,
                 });
               }}

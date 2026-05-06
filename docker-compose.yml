@@ -16,10 +16,14 @@ services:
       - traces:/app/traces
     environment:
       REDIS_URL: redis://redis:6379
+      # `-` (not `:-`) so an empty value in .env means "use real AWS DynamoDB"
+      # rather than falling back to the local container.
       DYNAMODB_ENDPOINT: ${DYNAMODB_ENDPOINT-http://dynamodb-local:8000}
       AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-${AWS_REGION:-us-east-1}}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
+      # Required for Workshop Studio temp (ASIA) creds; empty for permanent IAM.
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       TRACE_SYNC_MODE: ${TRACE_SYNC_MODE:-local}
       S3_TRACES_BUCKET: ${S3_TRACES_BUCKET:-}
@@ -37,6 +41,7 @@ services:
       BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
       BEDROCK_TEXT_MODEL: ${BEDROCK_TEXT_MODEL:-anthropic.claude-sonnet-4-5-20250929-v1:0}
       BEDROCK_EMBED_MODEL: ${BEDROCK_EMBED_MODEL:-amazon.titan-embed-text-v2:0}
+      # Per-task overrides; empty falls back to BEDROCK_TEXT_MODEL in code.
       BEDROCK_ANALYZER_MODEL: ${BEDROCK_ANALYZER_MODEL:-}
       BEDROCK_ORCHESTRATOR_MODEL: ${BEDROCK_ORCHESTRATOR_MODEL:-}
       BEDROCK_RECOMMENDER_MODEL: ${BEDROCK_RECOMMENDER_MODEL:-}
@@ -75,6 +80,7 @@ services:
       DYNAMODB_ENDPOINT: ${DYNAMODB_ENDPOINT-http://dynamodb-local:8000}
       TRACES_DB_DIR: /app/traces
       AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-${AWS_REGION:-us-east-1}}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}

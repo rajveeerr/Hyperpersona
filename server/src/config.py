@@ -29,7 +29,9 @@ class Settings(BaseSettings):
     bedrock_text_model: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
     bedrock_embed_model: str = "amazon.titan-embed-text-v2:0"
 
-    # Vector store — same modes the worker uses.
+    # Vector store — "memory", "opensearch" (local container), or "aoss"
+    # (AWS OpenSearch Serverless via SigV4). When mode="aoss", aoss_endpoint
+    # is required and opensearch_host/port are ignored.
     vector_mode: str = "opensearch"
     aoss_endpoint: str = ""
 

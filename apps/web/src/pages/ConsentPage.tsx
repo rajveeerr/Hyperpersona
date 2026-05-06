@@ -103,9 +103,16 @@ export function ConsentPage() {
         onSubmit={(scopes, retention) => {
           mutation.mutate({ scopes, data_retention_days: retention });
           track({
-            customer_id: customerId ?? "demo-customer-1",
             event_type: "consent_updated",
-            payload: { scopes, data_retention_days: retention, action: "create" },
+            payload: {
+              action: "create",
+              scopes,
+              data_retention_days: retention,
+              previous_scopes: [],
+              scopes_added: scopes,
+              scopes_removed: [],
+              source: "consent_page",
+            },
             consent_scope: scopes,
           });
         }}
@@ -119,23 +126,38 @@ export function ConsentPage() {
       busy={mutation.isPending}
       error={mutation.isError ? "Consent could not be saved. Try again." : null}
       onChangeScopes={(nextScopes) => {
+        const prevScopes = consent.record!.scopes;
         mutation.mutate({
           scopes: nextScopes,
           data_retention_days: consent.record!.data_retention_days,
         });
         track({
-          customer_id: customerId ?? "demo-customer-1",
           event_type: "consent_updated",
-          payload: { scopes: nextScopes, data_retention_days: consent.record!.data_retention_days },
+          payload: {
+            action: "update_scopes",
+            scopes: nextScopes,
+            previous_scopes: prevScopes,
+            scopes_added: nextScopes.filter((s) => !prevScopes.includes(s)),
+            scopes_removed: prevScopes.filter((s) => !nextScopes.includes(s)),
+            data_retention_days: consent.record!.data_retention_days,
+            source: "consent_page",
+          },
           consent_scope: nextScopes,
         });
       }}
       onChangeRetention={(retention) => {
+        const prevRetention = consent.record!.data_retention_days;
         mutation.mutate({ scopes: consent.record!.scopes, data_retention_days: retention });
         track({
-          customer_id: customerId ?? "demo-customer-1",
           event_type: "consent_updated",
-          payload: { scopes: consent.record!.scopes, data_retention_days: retention },
+          payload: {
+            action: "update_retention",
+            scopes: consent.record!.scopes,
+            data_retention_days: retention,
+            previous_data_retention_days: prevRetention,
+            retention_delta_days: retention - prevRetention,
+            source: "consent_page",
+          },
           consent_scope: consent.record!.scopes,
         });
       }}
