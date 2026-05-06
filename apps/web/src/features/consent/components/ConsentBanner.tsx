@@ -1,22 +1,30 @@
 import { useEffect, useReducer, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
+import { useAuth } from "@/features/auth/useAuth";
+import { useConsentMutation, useConsentQuery } from "@/features/consent/useConsent";
 import { useTrackEvent } from "@/features/events/useTrackEvent";
-import { apiClient } from "@/shared/api/client";
 import { tw } from "@/shared/ui/tw";
 
 const SESSION_DISMISS_PREFIX = "hyperpersona-consent-banner-dismissed";
 
-function dismissStorageKey(personalizationOn: boolean) {
-  return `${SESSION_DISMISS_PREFIX}:${personalizationOn ? "on" : "off"}`;
+/**
+ * Three banner states:
+ *   - "missing"   → no consent record yet (first-time user); offer setup CTA
+ *   - "personal-on"  → personalization scope present; reassure + link to controls
+ *   - "personal-off" → record exists but personalization off; offer one-click enable
+ */
+type BannerVariant = "missing" | "personal-on" | "personal-off";
+
+function dismissStorageKey(variant: BannerVariant) {
+  return `${SESSION_DISMISS_PREFIX}:${variant}`;
 }
 
-function readDismissed(personalizationOn: boolean) {
+function readDismissed(variant: BannerVariant) {
   if (typeof window === "undefined") return false;
   try {
-    return window.sessionStorage.getItem(dismissStorageKey(personalizationOn)) === "1";
+    return window.sessionStorage.getItem(dismissStorageKey(variant)) === "1";
   } catch {
     return false;
   }
@@ -48,18 +56,18 @@ function DismissNoticeButton({ onDismiss }: { onDismiss: () => void }) {
 }
 
 type NudgePanelProps = {
-  personalizationOn: boolean;
+  variant: BannerVariant;
   onExitComplete: () => void;
   children: (requestClose: () => void) => React.ReactNode;
 };
 
-function ConsentNudgePanel({ personalizationOn, onExitComplete, children }: NudgePanelProps) {
+function ConsentNudgePanel({ variant, onExitComplete, children }: NudgePanelProps) {
   const reduceMotion = useReducedMotion();
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
     setOpen(true);
-  }, [personalizationOn]);
+  }, [variant]);
 
   const handleDismiss = () => {
     setOpen(false);
@@ -70,7 +78,7 @@ function ConsentNudgePanel({ personalizationOn, onExitComplete, children }: Nudg
       <AnimatePresence onExitComplete={onExitComplete}>
         {open ? (
           <motion.div
-            key={personalizationOn ? "nudge-on" : "nudge-off"}
+            key={variant}
             className="pointer-events-auto w-full"
             role="status"
             aria-live="polite"
@@ -95,48 +103,69 @@ function ConsentNudgePanel({ personalizationOn, onExitComplete, children }: Nudg
 }
 
 export function ConsentBanner() {
-  const queryClient = useQueryClient();
+  const { isAuthenticated, customerId } = useAuth();
   const track = useTrackEvent();
   const [, forceRerender] = useReducer((c: number) => c + 1, 0);
-  const consentQuery = useQuery({
-    queryKey: ["consent"],
-    queryFn: apiClient.getConsent,
-  });
+  const consent = useConsentQuery();
+  const updateConsent = useConsentMutation();
 
-  const persistDismiss = (personalizationOn: boolean) => {
+  // Unauthenticated visitors don't have a consent record at all — keep the
+  // banner silent. The marketing/auth pages own their own messaging.
+  if (!isAuthenticated) return null;
+
+  // Either still loading, or a fatal error we don't want to surface as a
+  // floating toast (the page-level surface owns that messaging).
+  if (consent.isPending || consent.isFatalError) return null;
+
+  const variant: BannerVariant = consent.isMissing
+    ? "missing"
+    : consent.record?.scopes.includes("personalization")
+      ? "personal-on"
+      : "personal-off";
+
+  if (readDismissed(variant)) return null;
+
+  const persistDismiss = () => {
     try {
-      window.sessionStorage.setItem(dismissStorageKey(personalizationOn), "1");
+      window.sessionStorage.setItem(dismissStorageKey(variant), "1");
     } catch {
       /* private mode / quota */
     }
     forceRerender();
   };
 
-  const updateConsent = useMutation({
-    mutationFn: (scopes: string[]) => apiClient.updateConsent(scopes),
-    onSuccess: (next) => {
-      queryClient.setQueryData(["consent"], next);
-    },
-  });
-
-  if (!consentQuery.data) {
-    return null;
-  }
-
-  const hasPersonalization = consentQuery.data.scopes.includes("personalization");
-  if (readDismissed(hasPersonalization)) {
-    return null;
-  }
-
-  if (hasPersonalization) {
+  if (variant === "missing") {
     return (
-      <ConsentNudgePanel personalizationOn onExitComplete={() => persistDismiss(true)}>
+      <ConsentNudgePanel variant={variant} onExitComplete={persistDismiss}>
+        {(requestClose) => (
+          <div className={`${pop} ring-1 ring-info/12`}>
+            <DismissNoticeButton onDismiss={requestClose} />
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+              <span className="text-pretty text-[0.8125rem] font-medium leading-relaxed tracking-body text-ink/88">
+                You don&apos;t have a consent record yet. Set one up to control what the demo can use.
+              </span>
+              <Link
+                to="/consent"
+                className={`${tw.buttonEditorialBagSm} shrink-0 self-start sm:self-auto`}
+              >
+                Set up consent
+              </Link>
+            </div>
+          </div>
+        )}
+      </ConsentNudgePanel>
+    );
+  }
+
+  if (variant === "personal-on") {
+    return (
+      <ConsentNudgePanel variant={variant} onExitComplete={persistDismiss}>
         {(requestClose) => (
           <div className={`${pop} ring-1 ring-success/12`}>
             <DismissNoticeButton onDismiss={requestClose} />
             <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               <span className="text-pretty text-[0.8125rem] font-medium leading-relaxed tracking-body text-ink/88">
-                Personalization is on ranking and search may use consented activity.
+                Personalization is on — ranking and search may use consented activity.
               </span>
               <Link
                 to="/consent"
@@ -151,29 +180,33 @@ export function ConsentBanner() {
     );
   }
 
+  // personal-off
   return (
-    <ConsentNudgePanel personalizationOn={false} onExitComplete={() => persistDismiss(false)}>
+    <ConsentNudgePanel variant={variant} onExitComplete={persistDismiss}>
       {(requestClose) => (
         <div className={pop}>
           <DismissNoticeButton onDismiss={requestClose} />
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <span className="text-pretty text-[0.8125rem] leading-relaxed tracking-body text-ink/88">
-              Personalization is off—generic ranking and rails until you enable the demo scope.
+              Personalization is off — generic ranking and rails until you enable the demo scope.
             </span>
             <button
               type="button"
               className={`${tw.buttonEditorialBagSm} shrink-0 self-start sm:self-auto`}
+              disabled={updateConsent.isPending}
               onClick={() => {
-                updateConsent.mutate(["analytics", "personalization"]);
+                const nextScopes = ["analytics", "personalization"];
+                const retention = consent.record?.data_retention_days ?? 90;
+                updateConsent.mutate({ scopes: nextScopes, data_retention_days: retention });
                 track({
-                  customer_id: "demo-customer-1",
+                  customer_id: customerId ?? "demo-customer-1",
                   event_type: "consent_updated",
-                  payload: { scopes: ["analytics", "personalization"] },
-                  consent_scope: ["analytics", "personalization"],
+                  payload: { scopes: nextScopes, data_retention_days: retention, source: "banner" },
+                  consent_scope: nextScopes,
                 });
               }}
             >
-              Enable demo consent
+              {updateConsent.isPending ? "Enabling…" : "Enable demo consent"}
             </button>
           </div>
         </div>

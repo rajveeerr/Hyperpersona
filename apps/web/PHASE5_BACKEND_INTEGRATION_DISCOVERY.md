@@ -1,17 +1,24 @@
 # Phase 5 Backend Integration Discovery
 
-Last updated: 2026-05-05 (post auth + bulk-events update)
+Last updated: 2026-05-05 (post auth + consent + bulk-events FE integration)
 
-> **Auth has shipped + bulk events endpoint shipped.**
-> The previous `(pending-auth)` blockers are now resolved. Backend now ships:
+> **Status: Auth, consent, and event ingestion are shipped on the FE.**
+> Phases 5.0 → 5.4 are complete. Remaining phases are gated on backend delivery for the catalog/search/PDP/profile resource families.
+>
+> Backend currently ships:
 > - `POST /register`, `POST /login` returning a Bearer JWT
 > - JWT auth middleware on every non-public route
 > - `customer_id` resolved server-side from JWT (no longer in request bodies/querystrings)
 > - normalized consent routes (`GET /consent`, `POST /consent`)
-> - normalized right-to-delete (`DELETE /customer`)
+> - normalized right-to-delete (`DELETE /customer`) — **not consumed by FE** (operator-only)
 > - bulk events endpoint: `POST /events/batch` (max 100 events per request)
+> - jobs + traces endpoints (`GET /jobs/{id}`, `GET /traces/{id}`) — **not consumed by FE** (operator-only)
 >
-> This document has been re-written against current backend reality. The FE-side contract changes triggered by auth must be applied **before** any other endpoint cutover.
+> FE-side surfaces shipped:
+> - `tokenStore.ts` + `useAuth()` + protected routes + login/register pages.
+> - Authenticated `apiClient` with `Authorization` injection, normalized error envelope, 401 → `auth:expired` event.
+> - Consent hooks + page + banner, all auth-gated, with first-time-user setup flow on 404.
+> - Reliable event tracker with IndexedDB persistence, 3s/50-event batch triggers, keepalive flushes on visibility/pagehide, online resume, identity-aware purge.
 
 ## Purpose
 
@@ -599,28 +606,26 @@ This is the unblocking phase for everything else. No other real-backend cutover 
 - update React Query: keys derive `customer_id` from `useAuth()`; on auth identity change, invalidate the entire `["recommend", ...]`, `["consent", ...]`, etc. namespace.
 - demo persona switcher on the demo lab page is decoupled from real auth — it controls a separate "demo persona" overlay, not the real customer identity.
 
-### Phase 5.3 — Consent + customer-delete + jobs + traces
+### Phase 5.3 — Consent (SHIPPED)
 
-These are small, JWT-derived, low-risk cutovers and unlock the privacy and observability surfaces.
+Scoped down: `customer-delete`, `jobs`, and `traces` are intentionally **not** integrated on the FE — they're operator/observability surfaces, not user-facing flows. Removing them from the FE shrinks the attack surface and cuts dev-time complexity. The backend keeps shipping them; we just don't consume them here.
 
-- `apiClient.getConsent()` → `GET /consent` (no `customer_id` arg).
-- `apiClient.updateConsent({ scopes, data_retention_days })` → `POST /consent` (was `PUT`).
-- `apiClient.deleteAccount()` → `DELETE /customer`. Wire to a real privacy/right-to-erase flow.
-- `apiClient.getJob(jobId)` → `GET /jobs/{job_id}`.
-- `apiClient.getTraces(jobId)` → `GET /traces/{job_id}`.
-- expose job/trace lookups in the recommendation audit drawer for stakeholder demos.
+- `apiClient.getConsent()` → `GET /consent` (no `customer_id` arg). ✅ shipped
+- `apiClient.updateConsent({ scopes, data_retention_days })` → `POST /consent`. ✅ shipped
+- 404 from `GET /consent` is handled as "missing record" (first-time user prompt). ✅ shipped
+- `useConsentQuery` / `useConsentMutation` hooks gate on `useAuth().isAuthenticated`; the floating consent banner and `/consent` page route through these. ✅ shipped
 
-### Phase 5.4 — Event tracker + bulk ingestion
+### Phase 5.4 — Event tracker + bulk ingestion (SHIPPED)
 
-The bulk endpoint exists; this is the integration moment. Implement the architecture in *Event tracking integration spec* in full:
+The tracker module under `apps/web/src/features/events/tracker/` implements the full architecture from *Event tracking integration spec*. Status:
 
-1. Build the tracker module under `apps/web/src/features/events/tracker/` (types + IndexedDB layer + flush controller + transport).
-2. Migrate `apiClient.trackEvent()` callsites to enqueue through the tracker.
-3. Switch the transport to `POST /events/batch`. Use the singular `POST /events` only as a one-off compatibility test in dev.
-4. Consume `IngestBatchResponse.results[]` and delete only `client_event_id`s with `status === "queued"`.
-5. Surface per-event `rejected` reasons in dev console + telemetry counter (`events.rejected.no_consent`, `events.rejected.missing_personalization_scope`).
-6. Roll out behind `tracking.enabled` capability flag for staged enablement.
-7. Verify reliability across: tab close (pagehide), reload (boot drain), offline → online, consent revoke mid-buffer, auth user-switch.
+1. ✅ Module split: `types.ts`, `storage.ts` (IndexedDB), `aggregation.ts` (2s dedupe window), `tracker.ts` (singleton orchestrator), `init.ts` (DOM listeners), `index.ts` (public API), `TrackerConsentBridge.tsx` (React → tracker consent snapshot).
+2. ✅ All `useTrackEvent` callsites enqueue through the tracker (legacy `customer_id` arg dropped on the wire).
+3. ✅ Transport calls `POST /events/batch` exclusively. Singular `POST /events` is no longer wired into the FE.
+4. ✅ Acks: only `client_event_id`s with `status` of `queued` or `rejected` are deleted from IDB; transient failures stay queued for retry.
+5. ✅ Per-event `rejected` outcomes surface in the dev event panel with `reason` and a `rejected` status row.
+6. ☐ Capability flag (`tracking.enabled`) — deferred until the wider FE adapter/flag scaffolding lands in Phase 5.1's residual cleanup. Currently the tracker auto-pauses when there's no JWT and when `personalization` consent is missing, which covers the staging cases in practice.
+7. ✅ Reliability covered: tab close + reload (`visibilitychange`/`pagehide` keepalive flush + IDB boot drain), offline → online (`online` listener flush), consent revoke mid-buffer (TrackerConsentBridge updates the snapshot — subsequent enqueues drop), auth user-switch (boot drain calls `purgeOtherIdentity`), 7-day age cap, 1000-row queue cap.
 
 ### Phase 5.5 — Recommendation `/recommend` cutover
 

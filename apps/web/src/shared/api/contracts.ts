@@ -254,11 +254,27 @@ export type RecommendationRail = {
   products: Product[];
 };
 
+/**
+ * Mirrors `ConsentRecord` returned by `GET /consent` / `POST /consent` in
+ * `server/src/routes/consent.py`. Field names follow the backend wire shape
+ * (snake_case) so the FE doesn't need a transform layer for this resource.
+ *
+ * `last_updated` is only present on the GET response (read from DDB); the
+ * POST response omits it. Treat it as optional for that reason.
+ */
 export type ConsentRecord = {
-  customerId: string;
+  customer_id: string;
   scopes: string[];
-  lastUpdated: string;
+  data_retention_days: number;
+  last_updated?: string;
 };
+
+/** Allowed consent scopes — keep aligned with `ConsentUpsertRequest.scopes`. */
+export const CONSENT_SCOPES = ["analytics", "personalization", "marketing"] as const;
+export type ConsentScope = (typeof CONSENT_SCOPES)[number];
+
+/** Reasonable retention windows for the demo lab UI. */
+export const CONSENT_RETENTION_OPTIONS = [30, 90, 180, 365] as const;
 
 export type ExplicitPreference = {
   key: string;
@@ -294,16 +310,96 @@ export type TrackedEvent = {
   event_id: string;
   event_type: string;
   payload: Record<string, unknown>;
-  status: "queued" | "sent";
+  status: "queued" | "sent" | "rejected";
   created_at: string;
+  /** Server reason when status === "rejected" (e.g. `missing_personalization_scope`). */
+  reason?: string;
 };
 
+/**
+ * Wire shape sent to `POST /events` and `POST /events/batch` — mirrors
+ * `IngestEventRequest` in `shared/schemas.py`. The tracker hook still accepts
+ * a legacy `customer_id` field on input for backwards compat with existing
+ * call sites; that field is dropped before the request goes on the wire
+ * (server resolves identity from the JWT instead).
+ */
 export type IngestEventRequest = {
-  customer_id: string;
+  client_event_id: string;
   event_type: string;
   payload: Record<string, unknown>;
-  consent_scope: string[];
+  consent_scope?: string[];
 };
+
+/**
+ * Per-event result inside an `IngestBatchResponse`. The server uses
+ * `client_event_id` as the dedupe + idempotency key, and emits
+ * `status === "rejected"` (with a `reason`) when consent gates the batch.
+ */
+export type IngestEventResult = {
+  client_event_id: string;
+  status: "queued" | "rejected";
+  event_id?: string;
+  job_id?: string;
+  reason?: string;
+};
+
+export type IngestBatchResponse = {
+  accepted: number;
+  rejected: number;
+  results: IngestEventResult[];
+};
+
+/**
+ * Bearer-token auth contract — mirrors `AuthResponse` in `shared/schemas.py`.
+ * Returned from `POST /register` and `POST /login`. The token is a JWT; place
+ * it in `Authorization: Bearer <token>` for every protected request.
+ */
+export type AuthResponse = {
+  customer_id: string;
+  email: string;
+  token: string;
+  token_type: "bearer";
+  expires_in: number;
+};
+
+export type RegisterRequest = {
+  email: string;
+  password: string;
+};
+
+export type LoginRequest = {
+  email: string;
+  password: string;
+};
+
+/**
+ * Persisted client-side session. `expires_at_ms` is computed at issue time
+ * (`Date.now() + expires_in * 1000`) so the FE can detect expiry without a server round trip.
+ */
+export type AuthSession = {
+  token: string;
+  customerId: string;
+  email: string;
+  expiresAtMs: number;
+};
+
+/**
+ * Normalized error envelope thrown by the API client. Handles FastAPI's
+ * `{ detail }` (route-level 4xx), the JWT middleware's `{ error }` (401/500),
+ * and bare network errors uniformly.
+ */
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  retryable: boolean;
+  constructor(args: { status: number; message: string; code?: string; retryable?: boolean }) {
+    super(args.message);
+    this.name = "ApiError";
+    this.status = args.status;
+    this.code = args.code;
+    this.retryable = args.retryable ?? (args.status >= 500 || args.status === 0);
+  }
+}
 
 export type CheckoutInput = {
   email: string;

@@ -3,6 +3,7 @@ import { createBrowserRouter } from "react-router-dom";
 
 import { AppLayout } from "@/app/App";
 import { catalogPageImport, productPageImport } from "@/app/routeChunks";
+import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 
 const HomePage = lazy(() => import("@/pages/HomePage").then((m) => ({ default: m.HomePage })));
 const CatalogPage = lazy(catalogPageImport);
@@ -14,6 +15,8 @@ const CheckoutPage = lazy(() => import("@/pages/CheckoutPage").then((m) => ({ de
 const ConsentPage = lazy(() => import("@/pages/ConsentPage").then((m) => ({ default: m.ConsentPage })));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
 const DemoLabPage = lazy(() => import("@/pages/DemoLabPage").then((m) => ({ default: m.DemoLabPage })));
+const LoginPage = lazy(() => import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage })));
+const RegisterPage = lazy(() => import("@/pages/RegisterPage").then((m) => ({ default: m.RegisterPage })));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage })));
 
 export const router = createBrowserRouter([
@@ -27,10 +30,33 @@ export const router = createBrowserRouter([
       { path: "products/:slug", element: <ProductPage /> },
       { path: "wishlist", element: <WishlistPage /> },
       { path: "cart", element: <CartPage /> },
-      { path: "checkout", element: <CheckoutPage /> },
-      { path: "consent", element: <ConsentPage /> },
-      { path: "profile", element: <ProfilePage /> },
+      {
+        path: "checkout",
+        element: (
+          <ProtectedRoute>
+            <CheckoutPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "consent",
+        element: (
+          <ProtectedRoute>
+            <ConsentPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "profile",
+        element: (
+          <ProtectedRoute>
+            <ProfilePage />
+          </ProtectedRoute>
+        ),
+      },
       { path: "demo", element: <DemoLabPage /> },
+      { path: "login", element: <LoginPage /> },
+      { path: "register", element: <RegisterPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

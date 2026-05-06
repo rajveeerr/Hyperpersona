@@ -1,9 +1,15 @@
 import type { ConsentRecord, ExplanationRecord, ProfileSummary } from "@/shared/api/contracts";
 
+/**
+ * Default consent for the legacy demo customer (before auth was wired). New
+ * authenticated sessions start with **no** consent record on file — see the
+ * GET /api/consent handler which returns 404 in that case.
+ */
 export const initialConsent: ConsentRecord = {
-  customerId: "demo-customer-1",
+  customer_id: "demo-customer-1",
   scopes: ["analytics", "personalization"],
-  lastUpdated: new Date().toISOString(),
+  data_retention_days: 90,
+  last_updated: new Date().toISOString(),
 };
 
 export const initialProfile: ProfileSummary = {

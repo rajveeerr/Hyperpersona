@@ -1,6 +1,8 @@
 import { FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 
+import { useAuth } from "@/features/auth/useAuth";
 import { useCartStore } from "@/features/cart/store";
 import { useTrackEvent } from "@/features/events/useTrackEvent";
 import { useWishlistStore } from "@/features/wishlist/store";
@@ -28,7 +30,9 @@ function BagIcon({ className }: { className?: string }) {
 
 export function Header() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const track = useTrackEvent();
+  const { isAuthenticated, customerId, email, logout } = useAuth();
   const cartCount = useCartStore((state) => state.items.reduce((sum, item) => sum + item.quantity, 0));
   const wishlistCount = useWishlistStore((state) => state.productIds.length);
 
@@ -39,13 +43,21 @@ export function Header() {
     if (!query) {
       return;
     }
+    // Tracking still falls back to the legacy demo customer id when no real
+    // session exists — Phase 5.4 (event tracker) will drop this fallback.
     track({
-      customer_id: "demo-customer-1",
+      customer_id: customerId ?? "demo-customer-1",
       event_type: "search_submit",
       payload: { query },
       consent_scope: ["analytics", "personalization"],
     });
     navigate(`/search?q=${encodeURIComponent(query)}`);
+  }
+
+  function handleSignOut() {
+    logout();
+    queryClient.clear();
+    navigate("/", { replace: true });
   }
 
   return (
@@ -104,6 +116,34 @@ export function Header() {
               Go
             </button>
           </form>
+
+          {isAuthenticated ? (
+            <div className="flex items-center gap-2.5" aria-label="Account">
+              <span
+                className="hidden max-w-[16ch] truncate text-[0.75rem] font-medium tracking-[0.02em] text-muted sm:inline"
+                title={email ?? undefined}
+              >
+                {email}
+              </span>
+              <span aria-hidden className="hidden h-3 w-px bg-outline/60 sm:inline-block" />
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="nav-link-quiet inline-flex cursor-pointer items-center border-0 bg-transparent no-underline"
+              >
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <NavLink
+              to="/login"
+              prefetch="intent"
+              className="nav-link-quiet inline-flex items-center gap-1.5 border-0 bg-transparent no-underline"
+            >
+              Sign in
+            </NavLink>
+          )}
+
           <Link
             to="/cart"
             prefetch="intent"

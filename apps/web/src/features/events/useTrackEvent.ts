@@ -1,27 +1,33 @@
-import { useMutation } from "@tanstack/react-query";
+import { useCallback } from "react";
 
-import { useDebugEventStore } from "@/features/events/debug/store";
-import { apiClient } from "@/shared/api/client";
-import type { IngestEventRequest } from "@/shared/api/contracts";
+import { trackEvent as enqueueTrackedEvent } from "@/features/events/tracker";
 
+/**
+ * Legacy call-site shape preserved for backwards compatibility — every existing
+ * callsite passes `customer_id`, but the real backend ignores it (identity
+ * comes from the JWT). The field is dropped on the way to the tracker; do not
+ * rely on it for anything.
+ */
+type LegacyTrackInput = {
+  customer_id?: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  consent_scope?: string[];
+};
+
+/**
+ * Hook returns a stable `track(input)` callback. Internally this just enqueues
+ * to the singleton event tracker; the tracker handles batching, IDB persistence,
+ * idempotency, retries, and unload-time keepalive flushes — see
+ * `apps/web/src/features/events/tracker/tracker.ts` for the full design.
+ */
 export function useTrackEvent() {
-  const push = useDebugEventStore((state) => state.push);
-
-  const mutation = useMutation({
-    mutationFn: async (body: IngestEventRequest) => {
-      const response = await apiClient.trackEvent(body);
-      return {
-        event_id: response.event_id,
-        event_type: body.event_type,
-        payload: body.payload,
-        status: "sent" as const,
-        created_at: new Date().toISOString(),
-      };
-    },
-    onSuccess: (event) => {
-      push(event);
-    },
-  });
-
-  return mutation.mutate;
+  return useCallback((input: LegacyTrackInput) => {
+    // `customer_id` is intentionally ignored — server resolves identity from JWT.
+    enqueueTrackedEvent({
+      event_type: input.event_type,
+      payload: input.payload,
+      consent_scope: input.consent_scope,
+    });
+  }, []);
 }

@@ -11,7 +11,9 @@ import type {
   CreateProductReviewBody,
   DeliveryAddress,
   DeliveryAddressListResponse,
+  IngestBatchResponse,
   IngestEventRequest,
+  IngestEventResult,
   OrderListResponse,
   OrderSummary,
   Product,
@@ -25,9 +27,77 @@ import type {
   ViewerProductReview,
 } from "@/shared/api/contracts";
 
-let consentState: ConsentRecord = initialConsent;
 let profileState: ProfileSummary = initialProfile;
 let trackedEvents: TrackedEvent[] = [];
+
+/**
+ * Per-customer consent records keyed by `customer_id` — mirrors how the real
+ * backend stores them in DynamoDB. New customers (post-register) intentionally
+ * have **no** entry here so `GET /api/consent` returns 404 like the real API.
+ *
+ * The legacy demo customer (`demo-customer-1`) is preseeded so unauthenticated
+ * MSW flows that fall back to that id keep working.
+ */
+const consentByCustomer = new Map<string, ConsentRecord>([
+  [initialConsent.customer_id, { ...initialConsent }],
+]);
+
+/**
+ * In-memory auth table for the dev MSW worker. Mirrors the response shape of
+ * `POST /register` / `POST /login` in `server/src/routes/auth.py` so the FE
+ * can be developed offline. The "JWT" is a random opaque string — fine for
+ * the mock since the mock endpoints do not validate it; when pointing at the
+ * real backend, MSW is bypassed and the real JWT is issued instead.
+ */
+type MockAuthRecord = { customer_id: string; email: string; password: string };
+const mockAuthRecords: MockAuthRecord[] = [];
+/** Bearer-token → customer_id index. Populated on register/login, used by
+ * authenticated handlers to resolve identity from the `Authorization` header
+ * the same way the real `JWTAuthMiddleware` does. */
+const tokenToCustomer = new Map<string, string>();
+const MOCK_TOKEN_EXPIRES_IN = 60 * 60 * 24; // seconds — 24h, matches default JWT TTL
+
+function findAuthRecord(email: string): MockAuthRecord | undefined {
+  const normalized = email.toLowerCase();
+  return mockAuthRecords.find((record) => record.email === normalized);
+}
+
+function mintMockToken(customerId: string): string {
+  // Opaque marker; the mock handlers don't verify the signature, but we DO
+  // index it back to the customer so per-identity state (consent, etc.)
+  // works correctly across handlers.
+  const token = `mock.${crypto.randomUUID()}.${Date.now()}`;
+  tokenToCustomer.set(token, customerId);
+  return token;
+}
+
+/** Resolve customer_id from the `Authorization: Bearer <token>` header. */
+function customerIdFromAuth(request: Request): string | null {
+  const header = request.headers.get("authorization") ?? "";
+  if (!header.toLowerCase().startsWith("bearer ")) return null;
+  const token = header.slice(7).trim();
+  return tokenToCustomer.get(token) ?? null;
+}
+
+/**
+ * Returns the consent record relevant to the request — either the auth'd
+ * customer's record, or the legacy demo record for unauthenticated mock
+ * flows. Callers that need to enforce auth should branch on
+ * `customerIdFromAuth` directly instead.
+ */
+function effectiveConsent(request: Request): ConsentRecord | null {
+  const customerId = customerIdFromAuth(request) ?? initialConsent.customer_id;
+  return consentByCustomer.get(customerId) ?? null;
+}
+
+/**
+ * 401 envelope mirrors the FastAPI JWT middleware response shape
+ * (`{ error: "..." }`) so the FE error mapper can read both server reality
+ * and mock identically.
+ */
+function unauthorized() {
+  return HttpResponse.json({ error: "missing or invalid bearer token" }, { status: 401 });
+}
 
 function cloneReviewSeeds(): Record<string, ProductReview[]> {
   const out: Record<string, ProductReview[]> = {};
@@ -175,7 +245,7 @@ function buildFacets(url: URL): CatalogFacetGroup[] {
   ];
 }
 
-function filterProducts(url: URL): ProductListResponse {
+function filterProducts(url: URL, personalized: boolean): ProductListResponse {
   const sort = url.searchParams.get("sort") ?? "featured";
   const page = Math.max(1, Number(url.searchParams.get("page") ?? "1"));
   const pageSize = Math.min(48, Math.max(1, Number(url.searchParams.get("pageSize") ?? "12")));
@@ -199,8 +269,13 @@ function filterProducts(url: URL): ProductListResponse {
     total,
     page,
     pageSize,
-    personalized: consentState.scopes.includes("personalization"),
+    personalized,
   };
+}
+
+function isPersonalized(request: Request): boolean {
+  const consent = effectiveConsent(request);
+  return Boolean(consent?.scopes.includes("personalization"));
 }
 
 const seedAddresses: DeliveryAddress[] = [
@@ -258,6 +333,46 @@ const ordersState: OrderSummary[] = [
 ];
 
 export const handlers = [
+  // --- Auth (mirrors server/src/routes/auth.py) ---
+  http.post("/api/register", async ({ request }) => {
+    await delay(180);
+    const body = (await request.json()) as { email?: string; password?: string };
+    const email = (body.email ?? "").trim().toLowerCase();
+    const password = body.password ?? "";
+    if (!email.includes("@") || password.length < 8) {
+      return HttpResponse.json({ detail: "validation_error" }, { status: 422 });
+    }
+    if (findAuthRecord(email)) {
+      return HttpResponse.json({ detail: "email already registered" }, { status: 409 });
+    }
+    const customer_id = crypto.randomUUID();
+    mockAuthRecords.push({ customer_id, email, password });
+    return HttpResponse.json({
+      customer_id,
+      email,
+      token: mintMockToken(customer_id),
+      token_type: "bearer",
+      expires_in: MOCK_TOKEN_EXPIRES_IN,
+    });
+  }),
+  http.post("/api/login", async ({ request }) => {
+    await delay(220);
+    const body = (await request.json()) as { email?: string; password?: string };
+    const email = (body.email ?? "").trim().toLowerCase();
+    const password = body.password ?? "";
+    const record = findAuthRecord(email);
+    if (!record || record.password !== password) {
+      return HttpResponse.json({ detail: "invalid email or password" }, { status: 401 });
+    }
+    return HttpResponse.json({
+      customer_id: record.customer_id,
+      email: record.email,
+      token: mintMockToken(record.customer_id),
+      token_type: "bearer",
+      expires_in: MOCK_TOKEN_EXPIRES_IN,
+    });
+  }),
+
   http.get("/api/catalog/categories", async () => {
     await delay(150);
     return HttpResponse.json(categories);
@@ -268,7 +383,7 @@ export const handlers = [
   }),
   http.get("/api/catalog/products", async ({ request }) => {
     await delay(240);
-    return HttpResponse.json(filterProducts(new URL(request.url)));
+    return HttpResponse.json(filterProducts(new URL(request.url), isPersonalized(request)));
   }),
   http.get("/api/catalog/popular", async () => {
     await delay(130);
@@ -361,12 +476,12 @@ export const handlers = [
   }),
   http.get("/api/search", async ({ request }) => {
     await delay(220);
-    return HttpResponse.json(filterProducts(new URL(request.url)));
+    return HttpResponse.json(filterProducts(new URL(request.url), isPersonalized(request)));
   }),
-  http.get("/api/recommendations/home", async () => {
+  http.get("/api/recommendations/home", async ({ request }) => {
     await delay(160);
     return HttpResponse.json(
-      consentState.scopes.includes("personalization")
+      isPersonalized(request)
         ? homeRails
         : homeRails.map((rail) => ({
             ...rail,
@@ -388,18 +503,35 @@ export const handlers = [
     await delay(160);
     return HttpResponse.json(homeRails);
   }),
-  http.get("/api/consent", async () => {
+  http.get("/api/consent", async ({ request }) => {
+    // Mirrors `GET /consent` in server/src/routes/consent.py. JWT-derived,
+    // 404 when the customer has no record yet.
     await delay(90);
-    return HttpResponse.json(consentState);
+    const customerId = customerIdFromAuth(request);
+    if (!customerId) return unauthorized();
+    const record = consentByCustomer.get(customerId);
+    if (!record) {
+      return HttpResponse.json({ detail: "consent record not found" }, { status: 404 });
+    }
+    return HttpResponse.json(record);
   }),
-  http.put("/api/consent", async ({ request }) => {
-    const body = (await request.json()) as { scopes: string[] };
-    consentState = {
-      ...consentState,
-      scopes: body.scopes,
-      lastUpdated: new Date().toISOString(),
+  http.post("/api/consent", async ({ request }) => {
+    // Mirrors `POST /consent` (`ConsentUpsertRequest`) in server/src/routes/consent.py.
+    await delay(120);
+    const customerId = customerIdFromAuth(request);
+    if (!customerId) return unauthorized();
+    const body = (await request.json()) as { scopes: string[]; data_retention_days?: number };
+    if (!Array.isArray(body.scopes)) {
+      return HttpResponse.json({ detail: "validation_error" }, { status: 422 });
+    }
+    const next: ConsentRecord = {
+      customer_id: customerId,
+      scopes: [...new Set(body.scopes)].sort(),
+      data_retention_days: body.data_retention_days ?? 90,
+      last_updated: new Date().toISOString(),
     };
-    return HttpResponse.json(consentState);
+    consentByCustomer.set(customerId, next);
+    return HttpResponse.json(next);
   }),
   http.get("/api/me/profile", async () => {
     await delay(120);
@@ -420,21 +552,88 @@ export const handlers = [
     await delay(100);
     return HttpResponse.json(explanationRecord);
   }),
-  http.post("/api/events", async ({ request }) => {
-    const body = (await request.json()) as IngestEventRequest;
-    const record: TrackedEvent = {
-      event_id: crypto.randomUUID(),
-      event_type: body.event_type,
-      payload: body.payload,
-      status: "sent",
-      created_at: new Date().toISOString(),
-    };
-    trackedEvents = [record, ...trackedEvents].slice(0, 30);
-    return HttpResponse.json({
-      event_id: record.event_id,
-      job_id: crypto.randomUUID(),
-      status: "queued",
-    });
+  /**
+   * Bulk event ingest. Mirrors `POST /events/batch` in
+   * `server/src/routes/events.py`:
+   *   - Requires JWT (we resolve `customer_id` from `Authorization`).
+   *   - Treats `client_event_id` as the idempotency key — repeated entries in
+   *     the same batch produce a single result.
+   *   - Drops the entire batch with `status: "rejected"` per row when the
+   *     authenticated user has not granted `personalization` scope, matching
+   *     the server's consent gate.
+   *   - Returns `IngestBatchResponse` with per-event status so the FE
+   *     tracker can ack durable rows and stop retrying rejected ones.
+   */
+  http.post("/api/events/batch", async ({ request }) => {
+    const customerId = customerIdFromAuth(request);
+    if (!customerId) return unauthorized();
+
+    const body = (await request.json().catch(() => null)) as
+      | { events?: IngestEventRequest[] }
+      | null;
+    const events = Array.isArray(body?.events) ? body!.events : [];
+    if (events.length === 0) {
+      return HttpResponse.json({ accepted: 0, rejected: 0, results: [] } satisfies IngestBatchResponse);
+    }
+
+    const consent = consentByCustomer.get(customerId);
+    const personalizationGranted = (consent?.scopes ?? []).includes("personalization");
+
+    const seen = new Set<string>();
+    const results: IngestEventResult[] = [];
+    let accepted = 0;
+    let rejected = 0;
+
+    for (const event of events) {
+      if (!event?.client_event_id) {
+        // Reject malformed rows individually instead of failing the whole batch.
+        rejected += 1;
+        results.push({
+          client_event_id: event?.client_event_id ?? `unknown-${crypto.randomUUID()}`,
+          status: "rejected",
+          reason: "missing_client_event_id",
+        });
+        continue;
+      }
+      if (seen.has(event.client_event_id)) {
+        // Idempotency dedupe within a single batch — same as server.
+        continue;
+      }
+      seen.add(event.client_event_id);
+
+      if (!personalizationGranted) {
+        rejected += 1;
+        results.push({
+          client_event_id: event.client_event_id,
+          status: "rejected",
+          reason: "missing_personalization_scope",
+        });
+        continue;
+      }
+
+      const eventId = `evt_${event.client_event_id}`;
+      const jobId = `evt_${event.client_event_id}`;
+      results.push({
+        client_event_id: event.client_event_id,
+        status: "queued",
+        event_id: eventId,
+        job_id: jobId,
+      });
+      accepted += 1;
+
+      // Mirror to the debug-events surface so the existing dev panel still
+      // shows what's being uploaded under the auth'd identity.
+      const traceRow: TrackedEvent = {
+        event_id: eventId,
+        event_type: event.event_type,
+        payload: event.payload,
+        status: "sent",
+        created_at: new Date().toISOString(),
+      };
+      trackedEvents = [traceRow, ...trackedEvents].slice(0, 30);
+    }
+
+    return HttpResponse.json({ accepted, rejected, results } satisfies IngestBatchResponse);
   }),
   http.get("/api/debug/events", async () => {
     await delay(60);

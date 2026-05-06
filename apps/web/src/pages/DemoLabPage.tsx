@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { demoPersonas, type DemoPersona } from "@/features/personas/data";
+import type { DemoPersona } from "@/features/personas/data";
 import { usePersonaStore } from "@/features/personas/store";
 import { useTrackEvent } from "@/features/events/useTrackEvent";
 import { apiClient } from "@/shared/api/client";
