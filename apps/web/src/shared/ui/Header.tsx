@@ -84,6 +84,9 @@ export function Header() {
           <NavLink to="/wishlist" prefetch="intent" className="nav-link-quiet">
             Wishlist ({wishlistCount})
           </NavLink>
+          <NavLink to="/mcp" prefetch="intent" className="nav-link-quiet">
+            MCP
+          </NavLink>
         </nav>
 
         <div className="flex flex-wrap items-center justify-center gap-6 md:justify-end">
