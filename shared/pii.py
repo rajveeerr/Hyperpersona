@@ -17,6 +17,8 @@ import logging
 import re
 from typing import Protocol
 
+from .retry import aws_retry
+
 log = logging.getLogger(__name__)
 
 
@@ -83,6 +85,10 @@ class ComprehendRedactor:
         import boto3  # imported lazily so regex-mode users don't need boto3
         self.client = boto3.client("comprehend", region_name=region)
 
+    @aws_retry()
+    def _detect(self, text: str) -> dict:
+        return self.client.detect_pii_entities(Text=text, LanguageCode=self.LANGUAGE)
+
     def redact(self, text: str) -> tuple[str, list[dict]]:
         if not text:
             return text, []
@@ -94,9 +100,10 @@ class ComprehendRedactor:
         # [REDACTED] tokens won't match anything in Comprehend's PII
         # taxonomy, so this is safe.
         # Errors propagate — privacy is critical, no silent degradation
-        # to regex-only. The job_handler retry loop will catch transient
-        # AWS errors and mark the job failed after 3 attempts.
-        resp = self.client.detect_pii_entities(Text=text, LanguageCode=self.LANGUAGE)
+        # to regex-only. _detect is wrapped with aws_retry, so transient
+        # throttling is absorbed; permanent errors (e.g. AccessDenied)
+        # raise out to the job_handler retry loop.
+        resp = self._detect(text)
 
         comp_entities = resp.get("Entities", [])
         if not comp_entities:

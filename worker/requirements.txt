@@ -4,3 +4,4 @@ pydantic-settings>=2.6
 strands-agents>=0.1
 opensearch-py>=2.7
 email-validator>=2.2
+tenacity>=9.0

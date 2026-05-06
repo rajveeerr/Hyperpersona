@@ -7,3 +7,4 @@ opensearch-py>=2.7
 pyjwt>=2.10
 bcrypt>=4.2
 email-validator>=2.2
+tenacity>=9.0

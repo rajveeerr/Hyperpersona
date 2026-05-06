@@ -23,6 +23,8 @@ import math
 from concurrent.futures import ThreadPoolExecutor
 from typing import Protocol
 
+from .retry import aws_retry
+
 log = logging.getLogger(__name__)
 
 
@@ -43,6 +45,7 @@ class BedrockClient:
         self.text_model = text_model
         self.embed_model = embed_model
 
+    @aws_retry()
     def embed(self, text: str) -> list[float]:
         response = self.client.invoke_model(
             modelId=self.embed_model,
@@ -61,6 +64,7 @@ class BedrockClient:
         with ThreadPoolExecutor(max_workers=min(8, len(texts))) as pool:
             return list(pool.map(self.embed, texts))
 
+    @aws_retry()
     def generate(self, prompt: str, system: str = "", max_tokens: int = 1024) -> str:
         body: dict = {
             "anthropic_version": "bedrock-2023-05-31",

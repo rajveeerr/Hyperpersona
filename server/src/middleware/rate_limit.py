@@ -1,20 +1,26 @@
-"""Per-customer fixed-window rate limit (request rate, not event rate).
+"""Per-customer sliding-window rate limit (request rate, not event rate).
 
-Counter keyed on (customer_id, current_minute) in Redis. Increment on every
-request; reject with 429 once we cross the limit. The 5-second TTL slop
-on the bucket key keeps Redis tidy without affecting accuracy.
+Sliding window via a Redis sorted set keyed on (customer_id). Each
+request adds an entry with score=now (epoch seconds). On every request
+we drop entries older than `window_s` and check ZCARD against the limit.
+
+Why sliding over fixed-window: a fixed-window counter resets at the
+top of every minute, so a client can do `limit` requests at 12:59:59
+and another `limit` at 13:00:01 — 2× burst at the boundary. The
+sliding window enforces the limit over any 60-second rolling window,
+which is what most callers actually want.
 
 Mounted AFTER JWTAuthMiddleware so unauth'd requests hit 401 first and
 the resolved customer_id is available on request.state. We fall back to
-the client IP (or "anonymous") if state has no customer_id — covers the
-small number of authed paths that might bypass JWT in the future.
+the client IP (or "anonymous") if state has no customer_id.
 
-Bypassed paths: PUBLIC_PATHS in auth.py + /metrics/queue (must always be
-observable, even under overload).
+Bypassed paths: PUBLIC_PATHS in auth.py + /metrics/queue (must always
+be observable, even under overload).
 """
 
 import logging
 import time
+import uuid
 
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
@@ -50,15 +56,23 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         identity = getattr(request.state, "customer_id", None) or (
             request.client.host if request.client else "anonymous"
         )
-        window = int(time.time() // self.window_s)
-        bucket = f"rate:cust_req:{identity}:{window}"
+        key = f"rate:cust_req:{identity}"
+        now = time.time()
+        cutoff = now - self.window_s
 
-        count = self.redis.incr(bucket)
-        if count == 1:
-            self.redis.expire(bucket, self.window_s + 5)
+        # Trim then count, in one round-trip.
+        pipe = self.redis.pipeline()
+        pipe.zremrangebyscore(key, 0, cutoff)
+        pipe.zcard(key)
+        _, count = pipe.execute()
 
-        if count > self.limit:
-            retry_after = self.window_s - (int(time.time()) % self.window_s)
+        if count >= self.limit:
+            # Find the oldest entry in window — Retry-After is when it ages out.
+            oldest = self.redis.zrange(key, 0, 0, withscores=True)
+            retry_after = max(
+                1,
+                int((oldest[0][1] + self.window_s) - now) if oldest else self.window_s,
+            )
             log.warning(
                 "request rate limit exceeded",
                 extra={"identity": identity, "count": count, "limit": self.limit},
@@ -73,5 +87,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 },
                 headers={"Retry-After": str(retry_after)},
             )
+
+        # Under the limit — record this request. Member is unique per call so
+        # ZADD is always an insert (never a no-op overwrite).
+        member = f"{now}:{uuid.uuid4().hex[:8]}"
+        pipe = self.redis.pipeline()
+        pipe.zadd(key, {member: now})
+        pipe.expire(key, self.window_s + 5)
+        pipe.execute()
 
         return await call_next(request)
