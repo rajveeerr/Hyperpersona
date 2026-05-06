@@ -167,15 +167,30 @@ export function SearchPageListing() {
     });
   }, [q, page, query.data, trackSpec]);
 
-  // Pick a `/recommend` context: `no_results` when the query came back empty,
-  // otherwise the spec's general `search:general` (we don't currently surface
-  // a category slug from search results, so general is correct).
+  // Two `/recommend` calls on this page:
+  //   - `queryContext` weaves the live query + filters into the context so
+  //     the recommender can lean into the user's intent ("more like what
+  //     you searched for"). Skipped on empty-result pages — the no-results
+  //     fallback below is more useful than a query-shaped rail with nothing
+  //     to anchor on.
+  //   - `searchContext` is the original generic / no-results "sponsored"
+  //     slot. Profile-driven, decoupled from the query so it still shows
+  //     reorder / trending picks even when the search itself is sparse.
   const isEmptyResults = Boolean(q) && query.data && query.data.items.length === 0;
   const searchContext = isEmptyResults ? Context.noResults() : Context.search();
+  const queryContext = Context.searchResults(q, {
+    vertical: vertical || undefined,
+    freeDelivery: freeDelivery === "true",
+  });
   const recommendationsQuery = useQuery({
     queryKey: ["recommend", searchContext],
     queryFn: () => apiClient.getRecommendation(searchContext),
     enabled: q.length > 0 && Boolean(query.data),
+  });
+  const queryRecommendationsQuery = useQuery({
+    queryKey: ["recommend", queryContext],
+    queryFn: () => apiClient.getRecommendation(queryContext),
+    enabled: q.length > 0 && Boolean(query.data) && !isEmptyResults,
   });
 
   return (
@@ -231,7 +246,7 @@ export function SearchPageListing() {
             >
               <ProductGrid
                 products={query.data.items}
-                accent={query.data.personalized ? "Boosted for your signals" : "Generic ranking"}
+                accent={query.data.personalized ? "Boosted for your signals" : undefined}
               />
             </div>
           )}
@@ -262,6 +277,29 @@ export function SearchPageListing() {
               </button>
             </nav>
           ) : null}
+
+          {queryRecommendationsQuery.data && queryRecommendationsQuery.data.products.length > 0
+            ? (() => {
+                const rail = resolveRailCopy(queryRecommendationsQuery.data, {
+                  eyebrow: "Tuned to your search",
+                  headline: q ? `More picks shaped by “${q}”` : "More picks shaped by your search",
+                  subtitle: "Ranked against your query and the filters you've applied.",
+                  modeLabel: "Query-aware picks",
+                });
+                return (
+                  <RecommendationRail
+                    products={recommendProductsToProducts(queryRecommendationsQuery.data.products)}
+                    sourceContext={queryContext}
+                    title={rail.headline}
+                    subtitle={rail.eyebrow}
+                    reason={rail.subtitle}
+                    personalized={Boolean(queryRecommendationsQuery.data.personalization_reason)}
+                    modeLabel={rail.mode_label}
+                    presentation="default"
+                  />
+                );
+              })()
+            : null}
 
           {recommendationsQuery.data && recommendationsQuery.data.products.length > 0
             ? (() => {

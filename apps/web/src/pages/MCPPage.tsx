@@ -737,13 +737,10 @@ function ClosingCTA() {
       <div className="max-w-2xl">
         <p className={eyebrow}>Ready when you are</p>
         <h2 className={`${tw.displayH2} mt-2 text-[clamp(1.5rem,2.4vw,2rem)]`}>
-          Try the demo storefront, or wire up the live API.
+          Browse the storefront, or wire up the live API.
         </h2>
       </div>
       <div className="flex flex-wrap gap-3">
-        <Link to="/demo" className={tw.buttonEditorialBag}>
-          Open demo lab
-        </Link>
         <Link to="/catalog" className={tw.buttonEditorialBag}>
           Browse catalog
         </Link>

@@ -27,10 +27,26 @@ export const Context = {
   productPage: (categorySlug: string) => `product_page:${normalize(categorySlug)}`,
   search: (categorySlug?: string) =>
     `search:${categorySlug ? normalize(categorySlug) : "general"}`,
+  /**
+   * Query-aware search context. The user's free-text `q` (and optional
+   * facet filters) are normalized into the slug so the recommender can
+   * use them as a category-ish hint, distinct from the generic
+   * `search:general` "sponsored" slot. Stays under the `search:` surface
+   * so the worker's `_build_rail_copy` already routes it correctly.
+   */
+  searchResults: (q: string, opts: { vertical?: string; freeDelivery?: boolean } = {}) => {
+    const parts: string[] = [];
+    if (q) parts.push(normalize(q));
+    if (opts.vertical) parts.push(normalize(opts.vertical));
+    if (opts.freeDelivery) parts.push("free_delivery");
+    const slug = parts.filter(Boolean).join("_") || "general";
+    return `search:${slug}`;
+  },
   cartActive: () => "cart_active",
   cartEmpty: () => "cart_empty",
   postPurchase: () => "post_purchase",
   wishlist: () => "wishlist_active",
+  orders: () => "orders_history",
   noResults: () => "no_results",
   emailNewsletter: () => "email:newsletter",
   emailCartRecovery: () => "email:cart_recovery",

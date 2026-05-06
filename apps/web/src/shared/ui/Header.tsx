@@ -78,12 +78,14 @@ export function Header() {
           <NavLink to="/consent" prefetch="intent" className="nav-link-quiet">
             Consent
           </NavLink>
-          <NavLink to="/demo" prefetch="intent" className="nav-link-quiet">
-            Demo
-          </NavLink>
           <NavLink to="/wishlist" prefetch="intent" className="nav-link-quiet">
             Wishlist ({wishlistCount})
           </NavLink>
+          {isAuthenticated ? (
+            <NavLink to="/orders" prefetch="intent" className="nav-link-quiet">
+              Orders
+            </NavLink>
+          ) : null}
           <NavLink to="/mcp" prefetch="intent" className="nav-link-quiet">
             MCP
           </NavLink>

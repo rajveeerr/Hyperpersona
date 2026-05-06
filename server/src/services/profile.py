@@ -4,13 +4,15 @@ Reads and writes a single Dynamo row per customer (PK=CUSTOMER#{id},
 SK=PROFILE). Addresses live on the profile row and are read-only at the
 API level (seeded once via scripts/seed_demo_customer.py).
 
+For customers without a seeded profile (anyone who registered through
+`POST /register` rather than the demo seeder), `get_profile` lazily
+materializes a starter profile so the FE doesn't 404 on first load.
+
 `get_explanations` returns canned strings — the recommendations engine
 that would derive these dynamically is out of scope for this milestone.
 """
 
 from __future__ import annotations
-
-from fastapi import HTTPException
 
 from shared.dynamo import DynamoClient
 from shared.schemas import utc_now_iso
@@ -45,26 +47,48 @@ def _strip_dynamo_keys(item: dict) -> dict:
     return out
 
 
+def _default_profile(customer_id: str) -> dict:
+    """Starter profile for a customer that has never been seeded.
+
+    Empty preference / interest / signal lists let the FE render the
+    profile lab without 404ing; rails will fall back to generic ranking
+    until events accumulate.
+    """
+    short_id = customer_id.split("-", 1)[0] if "-" in customer_id else customer_id
+    return {
+        "customerId": customer_id,
+        "name": f"Shopper {short_id[:6]}",
+        "segment": "New shopper",
+        "topCategories": [],
+        "explicitPreferences": [],
+        "inferredInterests": [],
+        "recentSignals": [],
+        "lastUpdated": utc_now_iso(),
+        "addresses": [],
+    }
+
+
 class ProfileService:
     def __init__(self, dynamo: DynamoClient) -> None:
         self._dynamo = dynamo
 
-    def get_profile(self, customer_id: str) -> ProfileSummary:
+    def _load_or_init(self, customer_id: str) -> dict:
         row = self._dynamo.profile_get(customer_id)
-        if not row:
-            raise HTTPException(status_code=404, detail="profile not found")
-        return ProfileSummary.model_validate(_strip_dynamo_keys(row))
+        if row:
+            return _strip_dynamo_keys(row)
+        starter = _default_profile(customer_id)
+        self._dynamo.profile_put(customer_id, starter)
+        return starter
+
+    def get_profile(self, customer_id: str) -> ProfileSummary:
+        return ProfileSummary.model_validate(self._load_or_init(customer_id))
 
     def update_preferences(
         self,
         customer_id: str,
         body: UpdatePreferencesBody,
     ) -> ProfileSummary:
-        existing = self._dynamo.profile_get(customer_id)
-        if not existing:
-            raise HTTPException(status_code=404, detail="profile not found")
-
-        merged = _strip_dynamo_keys(existing)
+        merged = self._load_or_init(customer_id)
         merged["explicitPreferences"] = [p.model_dump(by_alias=True) for p in body.explicit_preferences]
         merged["lastUpdated"] = utc_now_iso()
 

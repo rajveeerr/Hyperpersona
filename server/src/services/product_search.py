@@ -32,6 +32,22 @@ log = logging.getLogger(__name__)
 # essentially free.
 _KNN_K = 48
 
+# Relevance gates on KNN hits. Without these, "towel" returns 48 shirts
+# because KNN always hands back its top-k regardless of how loose the
+# match is.
+#
+# OpenSearch reports an engine-normalized `_score`, not raw cosine:
+#   lucene cosinesimil:  score = (1 + cos_sim) / 2
+#   nmslib cosinesimil:  score = 1 / (2 - cos_sim)
+# 0.70 corresponds to cos_sim ≈ 0.40 (lucene) / cos_sim ≈ 0.57 (nmslib) —
+# below that, Titan considers the doc effectively unrelated to the query.
+_KNN_MIN_SCORE = 0.70
+
+# Drop hits that fall more than this much below the top match. Keeps a
+# tight cluster of very-similar results, cuts the long tail. If the top
+# match itself fails the floor above, the whole list is dropped.
+_KNN_RELATIVE_MARGIN = 0.06
+
 
 def _substring_matches(products: Iterable[Product], q: str) -> list[Product]:
     """Mirrors the q-handling in apply_product_filters: substring match
@@ -76,9 +92,19 @@ def hybrid_search(
     try:
         embedding = bedrock.embed(q)
         knn_hits = vectors.search(COLLECTION_PRODUCTS, query=embedding, k=_KNN_K)
+        # Relevance gate: drop hits below the absolute floor, then keep
+        # only those within RELATIVE_MARGIN of the top remaining match.
+        # If everything fails the floor, KNN contributes nothing and we
+        # fall back to substring-only — which for an off-catalog query
+        # like "towel" will be empty, producing the empty-results UI.
+        scored = [(h, float(h.get("similarity") or 0.0)) for h in knn_hits if h]
+        scored = [(h, s) for h, s in scored if s >= _KNN_MIN_SCORE]
+        if scored:
+            top = max(s for _, s in scored)
+            scored = [(h, s) for h, s in scored if s >= top - _KNN_RELATIVE_MARGIN]
         # OpenSearchClient flattens metadata; "slug" is on the result.
         # InMemory store also flattens metadata into the dict via **md.
-        knn_slugs = [hit.get("slug") or hit.get("id") for hit in knn_hits if hit]
+        knn_slugs = [h.get("slug") or h.get("id") for h, _ in scored]
     except Exception:
         log.exception("vector search failed for q=%r — falling back to text-only", q)
 

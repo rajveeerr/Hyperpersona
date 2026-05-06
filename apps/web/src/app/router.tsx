@@ -10,11 +10,11 @@ const CatalogPage = lazy(catalogPageImport);
 const SearchPage = lazy(() => import("@/pages/SearchPage").then((m) => ({ default: m.SearchPage })));
 const ProductPage = lazy(productPageImport);
 const WishlistPage = lazy(() => import("@/pages/WishlistPage").then((m) => ({ default: m.WishlistPage })));
+const OrdersPage = lazy(() => import("@/pages/OrdersPage").then((m) => ({ default: m.OrdersPage })));
 const CartPage = lazy(() => import("@/pages/CartPage").then((m) => ({ default: m.CartPage })));
 const CheckoutPage = lazy(() => import("@/pages/CheckoutPage").then((m) => ({ default: m.CheckoutPage })));
 const ConsentPage = lazy(() => import("@/pages/ConsentPage").then((m) => ({ default: m.ConsentPage })));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
-const DemoLabPage = lazy(() => import("@/pages/DemoLabPage").then((m) => ({ default: m.DemoLabPage })));
 const MCPPage = lazy(() => import("@/pages/MCPPage").then((m) => ({ default: m.MCPPage })));
 const LoginPage = lazy(() => import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import("@/pages/RegisterPage").then((m) => ({ default: m.RegisterPage })));
@@ -30,6 +30,14 @@ export const router = createBrowserRouter([
       { path: "search", element: <SearchPage /> },
       { path: "products/:slug", element: <ProductPage /> },
       { path: "wishlist", element: <WishlistPage /> },
+      {
+        path: "orders",
+        element: (
+          <ProtectedRoute>
+            <OrdersPage />
+          </ProtectedRoute>
+        ),
+      },
       { path: "mcp", element: <MCPPage /> },
       { path: "cart", element: <CartPage /> },
       {
@@ -56,7 +64,6 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      { path: "demo", element: <DemoLabPage /> },
       { path: "login", element: <LoginPage /> },
       { path: "register", element: <RegisterPage /> },
       { path: "*", element: <NotFoundPage /> },
