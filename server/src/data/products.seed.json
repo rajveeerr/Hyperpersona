@@ -1,0 +1,471 @@
+[
+  {
+    "id": "prod-1",
+    "slug": "altitude-shell-jacket",
+    "name": "Altitude Shell Jacket",
+    "brand": "Northline",
+    "category": "trail-running",
+    "price": 220,
+    "compareAt": 260,
+    "rating": 4.8,
+    "reviewCount": 118,
+    "image": "https://images.unsplash.com/photo-1523398002811-999ca8dec234?auto=format&fit=crop&w=900&q=80",
+    "description": "A weatherproof shell with breathable venting built for steep, wet days.",
+    "features": ["waterproof membrane", "storm hood", "packable hem"],
+    "badges": ["Top pick", "New drop"],
+    "inventoryStatus": "in-stock",
+    "personalizationTags": ["outdoor", "premium", "weather-ready"],
+    "vertical": "apparel",
+    "freeDelivery": true,
+    "tags": ["shell", "waterproof", "layering", "unisex"],
+    "department": "Mens",
+    "dateFirstAvailable": "2024-03-12",
+    "specification": [
+      "Waterproof membrane",
+      "Breathable pit zips",
+      "Storm hood",
+      "Packable into own pocket",
+      "Bluesign-approved face fabric"
+    ],
+    "dimensions": {
+      "display": "38 × 32 × 8 cm folded; 420 g",
+      "lengthCm": 38,
+      "widthCm": 32,
+      "heightCm": 8,
+      "weightG": 420
+    },
+    "images": [
+      "https://images.unsplash.com/photo-1523398002811-999ca8dec234?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=900&q=80"
+    ],
+    "longDescription": "Three-layer shell tuned for mixed weather: a quiet face fabric, taped seams, and venting you can open on the climb. The pattern trims bulk under a pack while leaving room for a midlayer. Storm hood fits over a trail cap; hem and hood adjust with gloved hands.",
+    "colorOptions": [
+      {"id": "slate", "label": "Slate"},
+      {"id": "black", "label": "Black"},
+      {"id": "pine", "label": "Pine"}
+    ],
+    "sizeOptions": [
+      {"id": "xs", "label": "XS"},
+      {"id": "s", "label": "S"},
+      {"id": "m", "label": "M"},
+      {"id": "l", "label": "L"},
+      {"id": "xl", "label": "XL"}
+    ]
+  },
+  {
+    "id": "prod-2",
+    "slug": "summit-pace-shoe",
+    "name": "Summit Pace Shoe",
+    "brand": "Aeroform",
+    "category": "trail-running",
+    "price": 180,
+    "rating": 4.7,
+    "reviewCount": 231,
+    "image": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80",
+    "description": "Responsive trail shoes with a rock plate and adaptable midfoot lock.",
+    "features": ["terrain grip", "rock plate", "quick-lace fit"],
+    "badges": ["Best seller"],
+    "inventoryStatus": "low-stock",
+    "personalizationTags": ["speed", "outdoor", "performance"],
+    "vertical": "apparel",
+    "freeDelivery": false,
+    "tags": ["trail", "footwear", "grip"],
+    "department": "Mens",
+    "dateFirstAvailable": "2023-11-01",
+    "specification": ["Rock plate", "Vibram-compatible outsole", "Quick lace", "Wide toe box option"],
+    "dimensions": {
+      "display": "33 × 22 × 12 cm; 640 g pair",
+      "lengthCm": 33,
+      "widthCm": 22,
+      "heightCm": 12,
+      "weightG": 640
+    },
+    "images": [
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?auto=format&fit=crop&w=900&q=80"
+    ],
+    "longDescription": "Responsive foam stack with a flexible rock plate for sharp terrain. Midfoot wrap locks the foot without pressure hot spots; toe bumper adds durability on scree.",
+    "sizeOptions": [
+      {"id": "7", "label": "US 7"},
+      {"id": "8", "label": "US 8"},
+      {"id": "9", "label": "US 9"},
+      {"id": "10", "label": "US 10"},
+      {"id": "11", "label": "US 11"}
+    ],
+    "colorOptions": [
+      {"id": "ember", "label": "Ember"},
+      {"id": "graphite", "label": "Graphite"}
+    ]
+  },
+  {
+    "id": "prod-3",
+    "slug": "commuter-sling-pack",
+    "name": "Commuter Sling Pack",
+    "brand": "Fieldnote",
+    "category": "city-commute",
+    "price": 110,
+    "rating": 4.6,
+    "reviewCount": 92,
+    "image": "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=900&q=80",
+    "description": "A modular sling with laptop sleeve and discreet quick-access pockets.",
+    "features": ["13-inch sleeve", "magnetic clasp", "water-resistant canvas"],
+    "badges": ["Everyday carry"],
+    "inventoryStatus": "in-stock",
+    "personalizationTags": ["urban", "minimal", "smart-carry"],
+    "vertical": "general",
+    "freeDelivery": true,
+    "tags": ["carry", "13-inch", "magnetic"],
+    "department": "Unisex",
+    "specification": ["13-inch padded sleeve", "Magnetic fidlock front", "Water-resistant canvas"],
+    "dimensions": {
+      "display": "42 × 28 × 12 cm; 780 g",
+      "lengthCm": 42,
+      "widthCm": 28,
+      "heightCm": 12,
+      "weightG": 780
+    },
+    "images": ["https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=900&q=80"]
+  },
+  {
+    "id": "prod-4",
+    "slug": "metro-knit-pant",
+    "name": "Metro Knit Pant",
+    "brand": "Baseline",
+    "category": "city-commute",
+    "price": 95,
+    "rating": 4.4,
+    "reviewCount": 57,
+    "image": "https://images.unsplash.com/photo-1473966968600-fa801b869a1a?auto=format&fit=crop&w=900&q=80",
+    "description": "Structured comfort pants designed to move between transit and office.",
+    "features": ["four-way stretch", "hidden zip pocket", "crease recovery"],
+    "badges": ["Editor favorite"],
+    "inventoryStatus": "in-stock",
+    "personalizationTags": ["comfort", "workwear", "versatile"],
+    "vertical": "apparel",
+    "freeDelivery": true,
+    "tags": ["knit", "commute", "stretch"],
+    "department": "Mens",
+    "sizeOptions": [
+      {"id": "28", "label": "28"},
+      {"id": "30", "label": "30"},
+      {"id": "32", "label": "32"},
+      {"id": "34", "label": "34"}
+    ],
+    "colorOptions": [
+      {"id": "charcoal", "label": "Charcoal"},
+      {"id": "navy", "label": "Navy"}
+    ],
+    "specification": ["Four-way stretch", "Hidden zip pocket", "Crease recovery"],
+    "dimensions": {
+      "display": "Folded stack 28 × 22 × 4 cm; 420 g",
+      "weightG": 420
+    },
+    "images": ["https://images.unsplash.com/photo-1473966968600-fa801b869a1a?auto=format&fit=crop&w=900&q=80"]
+  },
+  {
+    "id": "prod-5",
+    "slug": "recovery-knit-hoodie",
+    "name": "Recovery Knit Hoodie",
+    "brand": "Current Form",
+    "category": "studio-recovery",
+    "price": 88,
+    "rating": 4.9,
+    "reviewCount": 176,
+    "image": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
+    "description": "Soft-touch hoodie with temperature-balanced knit for post-training resets.",
+    "features": ["soft brushed interior", "odor control", "easy drape fit"],
+    "badges": ["Recovery pick"],
+    "inventoryStatus": "in-stock",
+    "personalizationTags": ["comfort", "recovery", "soft-touch"],
+    "vertical": "apparel",
+    "freeDelivery": false,
+    "tags": ["hoodie", "recovery", "layer"],
+    "department": "Unisex",
+    "colorOptions": [
+      {"id": "oat", "label": "Oat"},
+      {"id": "smoke", "label": "Smoke"}
+    ],
+    "sizeOptions": [
+      {"id": "xs", "label": "XS"},
+      {"id": "s", "label": "S"},
+      {"id": "m", "label": "M"},
+      {"id": "l", "label": "L"}
+    ],
+    "specification": ["Brushed interior", "Odor control", "Easy drape"],
+    "dimensions": {
+      "display": "Folded 32 × 26 × 5 cm; 480 g",
+      "weightG": 480
+    },
+    "images": ["https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80"]
+  },
+  {
+    "id": "prod-6",
+    "slug": "tempo-studio-mat",
+    "name": "Tempo Studio Mat",
+    "brand": "Kore",
+    "category": "studio-recovery",
+    "price": 72,
+    "rating": 4.5,
+    "reviewCount": 143,
+    "image": "https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?auto=format&fit=crop&w=900&q=80",
+    "description": "A dense training mat with high-grip top coat for yoga and mobility work.",
+    "features": ["high grip", "easy-clean finish", "travel strap"],
+    "badges": ["Studio staple"],
+    "inventoryStatus": "backorder",
+    "personalizationTags": ["recovery", "studio", "mindful"],
+    "vertical": "general",
+    "freeDelivery": true,
+    "tags": ["yoga", "grip", "rolled"],
+    "department": "Fitness",
+    "specification": ["High-grip top", "Closed-cell base", "Travel strap included"],
+    "dimensions": {
+      "display": "Rolled 18 × 18 × 62 cm; 1.4 kg",
+      "lengthCm": 18,
+      "widthCm": 18,
+      "heightCm": 62,
+      "weightG": 1400
+    },
+    "images": ["https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?auto=format&fit=crop&w=900&q=80"]
+  },
+  {
+    "id": "prod-7",
+    "slug": "ridge-merino-sock",
+    "name": "Ridge Merino Sock",
+    "brand": "Northline",
+    "category": "trail-running",
+    "price": 24,
+    "rating": 4.7,
+    "reviewCount": 305,
+    "image": "https://images.unsplash.com/photo-1599901860904-17e6ed7083a0?auto=format&fit=crop&w=900&q=80",
+    "description": "Cushioned merino socks with heel lock support for long trail days.",
+    "features": ["merino blend", "heel lock", "odor resistance"],
+    "badges": ["Frequently paired"],
+    "inventoryStatus": "in-stock",
+    "personalizationTags": ["trail", "budget-friendly", "add-on"],
+    "vertical": "apparel",
+    "freeDelivery": true,
+    "tags": ["merino", "heel-lock"],
+    "department": "Unisex",
+    "sizeOptions": [
+      {"id": "s", "label": "S / EU 35–38"},
+      {"id": "m", "label": "M / EU 39–42"},
+      {"id": "l", "label": "L / EU 43–46"}
+    ],
+    "colorOptions": [
+      {"id": "natural", "label": "Natural"},
+      {"id": "black", "label": "Black"}
+    ],
+    "specification": ["Merino blend", "Heel lock", "Odor resistance"],
+    "dimensions": {
+      "display": "12 × 8 × 3 cm pair; 52 g",
+      "weightG": 52
+    },
+    "images": ["https://images.unsplash.com/photo-1599901860904-17e6ed7083a0?auto=format&fit=crop&w=900&q=80"]
+  },
+  {
+    "id": "prod-8",
+    "slug": "signal-bottle",
+    "name": "Signal Bottle",
+    "brand": "Fieldnote",
+    "category": "city-commute",
+    "price": 34,
+    "rating": 4.3,
+    "reviewCount": 64,
+    "image": "https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=900&q=80",
+    "description": "An insulated carry bottle with matte finish and leakproof cap.",
+    "features": ["insulated steel", "leakproof cap", "cupholder fit"],
+    "badges": ["Desk to gym"],
+    "inventoryStatus": "in-stock",
+    "personalizationTags": ["hydration", "everyday", "add-on"],
+    "vertical": "general",
+    "freeDelivery": false,
+    "tags": ["insulated", "leakproof"],
+    "department": "Kitchen",
+    "specification": ["18/8 steel", "500 ml", "Cupholder base"],
+    "dimensions": {
+      "display": "7 × 7 × 26 cm; 320 g empty",
+      "heightCm": 26,
+      "weightG": 320
+    },
+    "images": ["https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=900&q=80"]
+  },
+  {
+    "id": "prod-9",
+    "slug": "trail-watch-beanie",
+    "name": "Trail Watch Beanie",
+    "brand": "Northline",
+    "category": "trail-running",
+    "price": 24,
+    "rating": 4.6,
+    "reviewCount": 88,
+    "image": "/collection-new/grid-beanie.webp",
+    "description": "Dense rib knit with a clean crown and soft edge—cold commutes and trailheads.",
+    "features": ["merino blend", "low-profile cuff", "packable"],
+    "badges": ["New drop"],
+    "inventoryStatus": "in-stock",
+    "personalizationTags": ["cold-weather", "compact", "everyday"],
+    "vertical": "apparel",
+    "freeDelivery": true,
+    "tags": ["beanie", "rib", "wool-blend"],
+    "department": "Unisex",
+    "colorOptions": [
+      {"id": "heather", "label": "Heather grey"},
+      {"id": "black", "label": "Black"}
+    ],
+    "specification": ["Merino blend", "Low-profile cuff", "Packable"],
+    "dimensions": {
+      "display": "22 × 22 × 4 cm folded; 78 g",
+      "weightG": 78
+    },
+    "images": ["/collection-new/grid-beanie.webp"]
+  },
+  {
+    "id": "prod-10",
+    "slug": "norden-oak-chair",
+    "name": "Norden Oak Chair",
+    "brand": "Hemline Studio",
+    "category": "home-living",
+    "price": 349,
+    "compareAt": 399,
+    "rating": 4.8,
+    "reviewCount": 42,
+    "image": "https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=900&q=80",
+    "description": "Solid oak dining chair with a quiet linen seat and soft radius edges.",
+    "features": ["FSC oak", "removable linen cover", "stacking friendly"],
+    "badges": ["Editor pick"],
+    "inventoryStatus": "in-stock",
+    "personalizationTags": ["home", "wood", "dining"],
+    "vertical": "furniture",
+    "freeDelivery": true,
+    "tags": ["dining", "oak", "natural-finish"],
+    "department": "Furniture",
+    "dateFirstAvailable": "2025-01-15",
+    "specification": ["Solid European oak", "Linen blend seat", "Clear matte lacquer"],
+    "dimensions": {
+      "display": "Assembled 45 × 52 × 82 cm; 6.2 kg",
+      "lengthCm": 45,
+      "widthCm": 52,
+      "heightCm": 82,
+      "weightG": 6200
+    },
+    "images": [
+      "https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=900&q=80"
+    ],
+    "longDescription": "Designed for long dinners: slightly pitched back, hand-sanded edges, and a seat deck that breathes. Ships partially assembled; legs bolt on with included hardware.",
+    "colorOptions": [
+      {"id": "natural-oak", "label": "Natural oak"},
+      {"id": "smoked-oak", "label": "Smoked oak"}
+    ]
+  },
+  {
+    "id": "prod-11",
+    "slug": "arc-desk-lamp",
+    "name": "Arc Desk Lamp",
+    "brand": "Lumen & Co",
+    "category": "home-living",
+    "price": 128,
+    "rating": 4.5,
+    "reviewCount": 67,
+    "image": "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=900&q=80",
+    "description": "Warm 2700K LED task lamp with dimmer touch ring and weighted base.",
+    "features": ["dimmable LED", "90+ CRI", "weighted base"],
+    "badges": ["Desk hero"],
+    "inventoryStatus": "in-stock",
+    "personalizationTags": ["lighting", "desk", "warm"],
+    "vertical": "furniture",
+    "freeDelivery": false,
+    "tags": ["LED", "2700K", "task-light"],
+    "department": "Lighting",
+    "specification": ["Integrated LED module", "Touch dimmer", "2 m fabric cord"],
+    "dimensions": {
+      "display": "Base Ø 18 cm, arm reach 48 cm; 2.1 kg",
+      "weightG": 2100
+    },
+    "images": ["https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=900&q=80"],
+    "colorOptions": [
+      {"id": "brass", "label": "Brass"},
+      {"id": "graphite", "label": "Graphite"}
+    ]
+  },
+  {
+    "id": "prod-12",
+    "slug": "orbit-noise-headphones",
+    "name": "Orbit Noise Headphones",
+    "brand": "Pulse Audio",
+    "category": "tech-desk",
+    "price": 279,
+    "compareAt": 329,
+    "rating": 4.7,
+    "reviewCount": 512,
+    "image": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=900&q=80",
+    "description": "Over-ear ANC with 40h battery, multipoint, and transparency mode.",
+    "features": ["hybrid ANC", "USB-C fast charge", "multipoint"],
+    "badges": ["Best seller"],
+    "inventoryStatus": "in-stock",
+    "personalizationTags": ["audio", "travel", "focus"],
+    "vertical": "electronics",
+    "freeDelivery": true,
+    "tags": ["ANC", "bluetooth-5.3", "USB-C"],
+    "department": "Electronics",
+    "dateFirstAvailable": "2024-08-01",
+    "specification": ["Hybrid ANC", "40 mm drivers", "BT 5.3", "AAC / SBC / LDAC"],
+    "dimensions": {
+      "display": "Folded 19 × 16 × 8 cm; 268 g",
+      "weightG": 268
+    },
+    "images": [
+      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1484704849700-f032a568e944?auto=format&fit=crop&w=900&q=80"
+    ],
+    "longDescription": "Dual-feed microphones cancel predictable noise while preserving voice clarity on calls. Ear cups rotate flat for bags; headband uses a low-pressure rail so glasses stay comfortable.",
+    "colorOptions": [
+      {"id": "midnight", "label": "Midnight"},
+      {"id": "sand", "label": "Sand"}
+    ]
+  },
+  {
+    "id": "prod-13",
+    "slug": "pulse-smartphone-x",
+    "name": "Pulse Smartphone X",
+    "brand": "Pulse",
+    "category": "tech-desk",
+    "price": 899,
+    "rating": 4.6,
+    "reviewCount": 890,
+    "image": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=80",
+    "description": "6.3\" OLED flagship with 48 MP main, IP68, and all-day adaptive battery.",
+    "features": ["120 Hz OLED", "IP68", "wireless charging"],
+    "badges": ["Top pick"],
+    "inventoryStatus": "in-stock",
+    "personalizationTags": ["mobile", "camera", "premium"],
+    "vertical": "electronics",
+    "freeDelivery": true,
+    "tags": ["5G", "OLED", "IP68"],
+    "department": "Electronics",
+    "dateFirstAvailable": "2025-05-01",
+    "specification": ["Snapdragon tier-3 class", "12 GB RAM", "Wi-Fi 7", "USB-C 3.2"],
+    "dimensions": {
+      "display": "Device 147 × 71 × 7.9 mm; 189 g",
+      "lengthCm": 14.7,
+      "widthCm": 7.1,
+      "heightCm": 0.79,
+      "weightG": 189
+    },
+    "images": [
+      "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?auto=format&fit=crop&w=900&q=80"
+    ],
+    "longDescription": "Adaptive display dials refresh between 1–120 Hz to preserve battery. Computational photography stack adds natural HDR without halos; night mode keeps skin tones accurate under street lighting.",
+    "storageOptions": [
+      {"id": "128", "label": "128 GB"},
+      {"id": "256", "label": "256 GB"},
+      {"id": "512", "label": "512 GB"}
+    ],
+    "colorOptions": [
+      {"id": "graphite", "label": "Graphite"},
+      {"id": "silver", "label": "Silver"},
+      {"id": "sage", "label": "Sage"}
+    ]
+  }
+]

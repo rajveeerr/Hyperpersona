@@ -8,11 +8,21 @@ TABLE_CUSTOMER_EVENTS = "customer_events"
 TABLE_CUSTOMER_CONSENT = "customer_consent"
 TABLE_CUSTOMER_AUTH = "customer_auth"
 TABLE_JOBS = "jobs"
+# Ecommerce tables (catalog + reviews + profile + cart/wishlist + orders)
+TABLE_PRODUCTS = "products"
+TABLE_CATEGORIES = "categories"
+TABLE_PRODUCT_REVIEWS = "product_reviews"
+TABLE_REVIEW_VOTES = "review_votes"
+TABLE_CUSTOMER_PROFILE = "customer_profile"
+TABLE_CART_ITEMS = "cart_items"
+TABLE_WISHLIST_ITEMS = "wishlist_items"
+TABLE_ORDERS = "orders"
 
 # OpenSearch collections
 COLLECTION_FACTS = "customer-facts"
 COLLECTION_BEHAVIOR = "behavior-embeddings"
 COLLECTION_SESSIONS = "session-summaries"
+COLLECTION_PRODUCTS = "product-catalog"
 
 # Tiered processing — only these event types trigger the full supervisor
 # pipeline (Bedrock embed + generate + per-fact embed). Everything else is

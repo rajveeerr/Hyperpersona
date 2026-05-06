@@ -16,26 +16,26 @@ HOST = os.getenv("OPENSEARCH_HOST", "localhost")
 PORT = int(os.getenv("OPENSEARCH_PORT", "9200"))
 
 
-COLLECTIONS = ["customer-facts", "behavior-embeddings", "session-summaries"]
+COLLECTIONS = ["customer-facts", "behavior-embeddings", "session-summaries", "product-catalog"]
 
 
-INDEX_BODY = {
-    "settings": {
-        "index": {
-            "knn": True,
-        }
+_KNN_VECTOR_FIELD = {
+    "type": "knn_vector",
+    "dimension": 1024,
+    "method": {
+        "name": "hnsw",
+        "space_type": "cosinesimil",
+        "engine": "lucene",
     },
+}
+
+# Customer-data collections (facts, behaviors, sessions) — vectors keyed by
+# customer_id, used for personalization retrieval.
+INDEX_BODY = {
+    "settings": {"index": {"knn": True}},
     "mappings": {
         "properties": {
-            "vector": {
-                "type": "knn_vector",
-                "dimension": 1024,
-                "method": {
-                    "name": "hnsw",
-                    "space_type": "cosinesimil",
-                    "engine": "lucene",
-                },
-            },
+            "vector": _KNN_VECTOR_FIELD,
             "customer_id": {"type": "keyword"},
             "text": {"type": "text"},
             "source_event": {"type": "keyword"},
@@ -44,6 +44,30 @@ INDEX_BODY = {
         }
     },
 }
+
+# Product catalog collection — vectors keyed by slug, with structural
+# filter fields (vertical, freeDelivery, price, …) for hybrid filter+KNN
+# queries.
+PRODUCT_INDEX_BODY = {
+    "settings": {"index": {"knn": True}},
+    "mappings": {
+        "properties": {
+            "vector": _KNN_VECTOR_FIELD,
+            "slug": {"type": "keyword"},
+            "name": {"type": "text"},
+            "brand": {"type": "keyword"},
+            "category": {"type": "keyword"},
+            "vertical": {"type": "keyword"},
+            "price": {"type": "float"},
+            "freeDelivery": {"type": "boolean"},
+            "tags": {"type": "keyword"},
+        }
+    },
+}
+
+
+def _body_for(collection: str) -> dict:
+    return PRODUCT_INDEX_BODY if collection == "product-catalog" else INDEX_BODY
 
 
 def wait_for_cluster(client: OpenSearch, max_seconds: int = 60) -> None:
@@ -71,7 +95,7 @@ def main() -> None:
 
     for name in COLLECTIONS:
         try:
-            client.indices.create(index=name, body=INDEX_BODY)
+            client.indices.create(index=name, body=_body_for(name))
             print(f"created   {name}")
         except RequestError as e:
             if "resource_already_exists_exception" in str(e):

@@ -1,0 +1,37 @@
+[
+  {
+    "id": "cat-trail",
+    "slug": "trail-running",
+    "name": "Trail Running",
+    "description": "Grip-forward essentials for mixed terrain and quick weather shifts.",
+    "hero": "For runners who leave the pavement behind."
+  },
+  {
+    "id": "cat-commute",
+    "slug": "city-commute",
+    "name": "City Commute",
+    "description": "Smart layers and carry gear for daily movement with polish.",
+    "hero": "Lightweight everyday carry, built for repeat wear."
+  },
+  {
+    "id": "cat-studio",
+    "slug": "studio-recovery",
+    "name": "Studio & Recovery",
+    "description": "Low-impact comfort pieces for training resets and slower days.",
+    "hero": "Soft structure and recovery-first staples."
+  },
+  {
+    "id": "cat-home",
+    "slug": "home-living",
+    "name": "Home Living",
+    "description": "Furniture and lighting for calm, editorial rooms.",
+    "hero": "Pieces that anchor a space without shouting."
+  },
+  {
+    "id": "cat-tech",
+    "slug": "tech-desk",
+    "name": "Tech & Desk",
+    "description": "Phones, audio, and desk hardware with clear specs.",
+    "hero": "Tools that stay out of the way until you need them."
+  }
+]

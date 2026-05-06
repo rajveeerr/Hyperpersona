@@ -18,6 +18,7 @@ Usage in routes:
 
 import redis.asyncio as aioredis
 
+from shared.bedrock import make_bedrock_client
 from shared.dynamo import DynamoClient
 from shared.queue import make_redis
 from shared.vector_store import make_vector_store
@@ -39,4 +40,14 @@ vectors = make_vector_store(
     mode="opensearch",
     host=settings.opensearch_host,
     port=settings.opensearch_port,
+)
+
+# Bedrock — server uses embed() to vectorize search queries against the
+# product-catalog OpenSearch index. Mock mode (SHA256) works for dev with
+# no AWS creds.
+bedrock = make_bedrock_client(
+    mode=settings.bedrock_mode,
+    region=settings.bedrock_region,
+    text_model=settings.bedrock_text_model,
+    embed_model=settings.bedrock_embed_model,
 )

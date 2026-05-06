@@ -28,9 +28,17 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       JWT_EXPIRY_HOURS: ${JWT_EXPIRY_HOURS:-24}
+      BEDROCK_MODE: ${BEDROCK_MODE:-mock}
+      BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
+      BEDROCK_TEXT_MODEL: ${BEDROCK_TEXT_MODEL:-anthropic.claude-sonnet-4-5-20250929-v1:0}
+      BEDROCK_EMBED_MODEL: ${BEDROCK_EMBED_MODEL:-amazon.titan-embed-text-v2:0}
+      VECTOR_MODE: ${VECTOR_MODE:-opensearch}
+      OPENSEARCH_HOST: ${OPENSEARCH_HOST:-opensearch}
+      OPENSEARCH_PORT: ${OPENSEARCH_PORT:-9200}
     depends_on:
       - redis
       - dynamodb-local
+      - opensearch
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
       interval: 15s

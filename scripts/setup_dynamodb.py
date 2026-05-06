@@ -34,6 +34,17 @@ STATUS_INDEX_ATTRS = [
     {"AttributeName": "status", "AttributeType": "S"},
     {"AttributeName": "created_at", "AttributeType": "S"},
 ]
+# GSI keys for product_reviews: lets us look up "has this customer
+# already reviewed this product?" in one Query (one-per-customer-per-SKU
+# enforcement + viewerReview projection).
+CUSTOMER_PRODUCT_INDEX_KEYS = [
+    {"AttributeName": "customer_id", "KeyType": "HASH"},
+    {"AttributeName": "product_slug", "KeyType": "RANGE"},
+]
+CUSTOMER_PRODUCT_INDEX_ATTRS = [
+    {"AttributeName": "customer_id", "AttributeType": "S"},
+    {"AttributeName": "product_slug", "AttributeType": "S"},
+]
 
 
 TABLES = [
@@ -73,6 +84,62 @@ TABLES = [
                 "Projection": {"ProjectionType": "ALL"},
             }
         ],
+        "BillingMode": "PAY_PER_REQUEST",
+    },
+    # --- ecommerce tables ----------------------------------------------------
+    {
+        "TableName": "products",
+        "KeySchema": PK_SK,
+        "AttributeDefinitions": PK_SK_ATTRS,
+        "BillingMode": "PAY_PER_REQUEST",
+    },
+    {
+        "TableName": "categories",
+        "KeySchema": PK_SK,
+        "AttributeDefinitions": PK_SK_ATTRS,
+        "BillingMode": "PAY_PER_REQUEST",
+    },
+    {
+        "TableName": "product_reviews",
+        "KeySchema": PK_SK,
+        "AttributeDefinitions": PK_SK_ATTRS + CUSTOMER_PRODUCT_INDEX_ATTRS,
+        "GlobalSecondaryIndexes": [
+            {
+                "IndexName": "customer-product-index",
+                "KeySchema": CUSTOMER_PRODUCT_INDEX_KEYS,
+                "Projection": {"ProjectionType": "ALL"},
+            }
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+    },
+    {
+        "TableName": "review_votes",
+        "KeySchema": PK_SK,
+        "AttributeDefinitions": PK_SK_ATTRS,
+        "BillingMode": "PAY_PER_REQUEST",
+    },
+    {
+        "TableName": "customer_profile",
+        "KeySchema": PK_SK,
+        "AttributeDefinitions": PK_SK_ATTRS,
+        "BillingMode": "PAY_PER_REQUEST",
+    },
+    {
+        "TableName": "cart_items",
+        "KeySchema": PK_SK,
+        "AttributeDefinitions": PK_SK_ATTRS,
+        "BillingMode": "PAY_PER_REQUEST",
+    },
+    {
+        "TableName": "wishlist_items",
+        "KeySchema": PK_SK,
+        "AttributeDefinitions": PK_SK_ATTRS,
+        "BillingMode": "PAY_PER_REQUEST",
+    },
+    {
+        "TableName": "orders",
+        "KeySchema": PK_SK,
+        "AttributeDefinitions": PK_SK_ATTRS,
         "BillingMode": "PAY_PER_REQUEST",
     },
 ]
