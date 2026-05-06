@@ -79,16 +79,13 @@ class ManualRecommendSupervisor:
             rec, (time.time() - t0) * 1000, "ok",
         )
 
-        # 2. Verifier (Opus for highest-accuracy judgment)
+        # 2. Verifier (Opus for highest-accuracy judgment).
+        # Pass the actual fact/behavior/summary texts — not just counts —
+        # so the verifier can fact-check every claim in the draft.
         t0 = time.time()
-        source_summary = (
-            f"context={context}; "
-            f"facts_used={rec['facts_used']}; "
-            f"behaviors_used={rec['behaviors_used']}; "
-            f"summaries_used={rec.get('summaries_used', 0)}"
-        )
+        source_context = recommender_tool.build_verifier_source_context(rec, context)
         verified = verifier_tool.verify_recommendation(
-            rec["offer"], source_summary, self.bedrock_verifier,
+            rec["offer"], source_context, self.bedrock_verifier,
         )
         self.tracer.log(
             job_id, "verifier", "verify_recommendation",
@@ -112,16 +109,22 @@ class ManualRecommendSupervisor:
 _STRANDS_RECOMMEND_PROMPT = """You are HyperPersona's recommendation supervisor.
 
 For each customer recommendation request, execute these steps IN ORDER:
-  1. Call generate_recommendation_tool with the provided context to get a
-     draft offer plus the source data it used.
-  2. Call verify_recommendation_tool, passing the draft offer and a
-     short source summary string from step 1.
+  1. Call generate_recommendation_tool(query_context=<the context>) to get a
+     draft. The result is a dict with 'offer' plus internal fields the
+     verifier needs.
+  2. Call verify_recommendation_tool with EXACTLY:
+       - draft_offer    = the 'offer' field from step 1's result
+       - source_context = "use_captured_data"
+     (The verifier closure pulls the real source data from step 1's captured
+      result. You do NOT need to build or pass any other source_context —
+      passing the literal string above is sufficient.)
   3. Return a one-line confirmation that you generated and verified the
-     recommendation.
+     recommendation. Do NOT include the offer text in your response —
+     the offer is captured directly from the tool result by the supervisor.
 
 Do not skip the verifier. Do not call any tools beyond
 generate_recommendation_tool and verify_recommendation_tool. Do not invent
-facts."""
+facts. Do not paraphrase the offer."""
 
 
 class StrandsRecommendSupervisor:
@@ -162,7 +165,10 @@ class StrandsRecommendSupervisor:
     def run_recommend(self, job_id: str, customer_id: str, context: str) -> dict:
         from strands import Agent, tool
 
-        from .tools.recommender_tool import generate_recommendation
+        from .tools.recommender_tool import (
+            build_verifier_source_context,
+            generate_recommendation,
+        )
         from .tools.verifier_tool import verify_recommendation
 
         self.tracer.log(
@@ -204,12 +210,20 @@ class StrandsRecommendSupervisor:
 
             Args:
                 draft_offer: the recommendation text to verify
-                source_context: short summary string of the source data
-                    used to ground the recommendation
+                source_context: source data the orchestrator believes the
+                    recommendation should ground in. The closure overrides
+                    this with the structured form built from the captured
+                    recommender result, so the verifier always sees the
+                    real fact + behavior + summary lines.
 
             Returns:
                 A dict with 'status' ('valid'|'corrected') and 'final_offer'.
             """
+            rec = capture.get("recommender")
+            if rec:
+                # Structured form — same shape the manual supervisor uses.
+                # Higher fidelity than whatever Sonnet stringifies.
+                source_context = build_verifier_source_context(rec, context)
             result = verify_recommendation(draft_offer, source_context, bedrock_verifier)
             capture["verifier"] = result
             return result

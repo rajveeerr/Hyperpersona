@@ -1,8 +1,14 @@
 """Verifier: chain-of-verification.
 
-Asks Claude whether a draft recommendation is accurate w.r.t. the source
-context. If yes, the draft passes through unchanged. If no, Claude
-rewrites the recommendation and the rewrite becomes the final offer.
+Reads the draft offer + the actual source facts the recommender used,
+and checks every concrete claim against the source. If every claim is
+supported, replies VALID and the draft passes through. If any claim
+isn't supported, rewrites the draft to remove or fix the unsupported
+claim — keeps accurate parts intact.
+
+source_context is built by recommender_tool.build_verifier_source_context
+so the verifier sees the real fact + behavior + summary lines, not just
+counts.
 """
 
 import logging
@@ -12,10 +18,17 @@ from shared.bedrock import BedrockClientProtocol
 log = logging.getLogger(__name__)
 
 _SYSTEM = (
-    "You are a fact-checker. Verify a recommendation draft against the "
-    "source data. If the draft accurately reflects the source, reply "
-    "with exactly the word VALID. Otherwise rewrite the recommendation "
-    "to be accurate. Use only information from the source data."
+    "You verify a recommendation draft against source facts and behavior.\n\n"
+    "For each specific claim in the draft (product names, brands, "
+    "attributes, prices, discounts, promotions, features), find supporting "
+    "evidence in the SOURCE data below. A claim is supported only if a "
+    "source line directly mentions or implies it.\n\n"
+    "If every concrete claim is supported: reply with the single word VALID.\n"
+    "If any claim is unsupported: rewrite the draft to remove or fix the "
+    "unsupported claim, keeping the accurate parts intact. Do not add new "
+    "claims. Do not invent prices, discount percentages, or features that "
+    "aren't in the source. Output the corrected draft as plain prose, "
+    "one sentence, no markdown."
 )
 
 
@@ -27,12 +40,17 @@ def make_verifier_tool(bedrock: BedrockClientProtocol):
     def verify_recommendation_tool(draft_offer: str, source_context: str) -> dict:
         """Fact-check a draft offer against the source data.
 
-        If the draft accurately reflects the source, returns status='valid'.
-        Otherwise returns status='corrected' with a rewritten offer.
+        If every concrete claim is supported, returns status='valid' and
+        passes the draft through unchanged. Otherwise returns
+        status='corrected' with a rewritten offer that removes or fixes
+        unsupported claims.
 
         Args:
             draft_offer: the recommendation text to verify
-            source_context: the source data the recommendation should ground in
+            source_context: structured source data (facts, behaviors,
+                summaries, conflicts) that the recommendation should
+                ground in. Built by
+                recommender_tool.build_verifier_source_context.
 
         Returns:
             dict with 'status' ('valid'|'corrected') and 'final_offer' (str).
@@ -48,9 +66,12 @@ def verify_recommendation(
     bedrock: BedrockClientProtocol,
 ) -> dict:
     prompt = (
-        f"Draft recommendation: {draft_offer}\n\n"
-        f"Source data:\n{source_context}\n\n"
-        "Reply VALID if accurate, otherwise rewrite the recommendation."
+        f"{source_context}\n\n"
+        f"DRAFT TO VERIFY:\n{draft_offer}\n\n"
+        "For every concrete claim in the draft (products, brands, prices, "
+        "discounts, features, promotions), find a matching source line. "
+        "If even one claim is unsupported, output the corrected draft. "
+        "Otherwise reply with the single word VALID."
     )
     verdict = bedrock.generate(prompt=prompt, system=_SYSTEM).strip()
 
@@ -58,5 +79,5 @@ def verify_recommendation(
         log.info("verifier: status=valid")
         return {"status": "valid", "final_offer": draft_offer}
 
-    log.info("verifier: status=corrected")
+    log.info("verifier: status=corrected (draft had unsupported claims)")
     return {"status": "corrected", "final_offer": verdict}
